@@ -85,32 +85,29 @@ impl InitializedAudioExtractor {
         let mut file_name = "temp_".to_string();
         file_name = file_name + &Uuid::new_v4().to_string();
 
-        //TODO clean, look sloppy
-        //if desired audio stream is not found, try other acceptable ones
-        if audio_stream == None {
-            audio_stream = audio_stream_list.clone().into_iter().find(|stream| stream.mime.to_string() == "audio/mp3");
-        }
-        else {
-            //append extension
-            file_name.push_str(".mp4");
-        }
+        {
+            let mut file_extension: &str = ".mp4";
 
-        if audio_stream == None {
-            audio_stream = audio_stream_list.clone().into_iter().find(|stream| stream.mime.to_string() == "audio/wav");
-        }
-        else {
-            file_name.push_str(".mp3");
-        }
+            //if desired audio stream is not found, try other acceptable ones
+            if audio_stream == None {
+                audio_stream = audio_stream_list.clone().into_iter().find(|stream| stream.mime.to_string() == "audio/mp3");
+                
+                file_extension = ".mp3";
+            }
 
-        if audio_stream == None {
-            return Err("Could not find valid audio format".to_string());
-        }
-        else {
-            file_name.push_str(".wav");
-        }
+            if audio_stream == None {
+                audio_stream = audio_stream_list.clone().into_iter().find(|stream| stream.mime.to_string() == "audio/wav");
 
-        //TODO change
-        let file_name = "file_1.mp4";
+                file_extension = ".wav";
+            }
+
+            if audio_stream == None {
+                return Err("Could not find valid audio format".to_string());
+            }
+
+            file_name.push_str(file_extension);
+         }
+
         //append file name to path
         let path = path.join(file_name);
 
