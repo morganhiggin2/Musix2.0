@@ -43,16 +43,16 @@ impl EmptyAudioExtractor {
 
 impl InitializedAudioExtractor {
     pub fn download(&self) -> Result<FinishedAudioExtractor, String> {
-        // set path
-
-        //TODO get rid of unwrap
-        let current_working_directory: PathBuf = std::env::current_dir().unwrap();
+        // set directoryt that the file will be written to 
+        let current_working_directory: PathBuf = match std::env::current_dir() {
+            Ok(val) => val,
+            Err(e) => {
+                return Err(e.to_string());
+            } 
+        };
         let path = current_working_directory.join(DATA_DIRECTORY_NAME).join(TEMP_AUDIO_DIRECTORY_NAME);
 
-        //TODO append file directory
-        //TODO append tempoary file name with random uuid added, then move to final destination with final name and metadata
-
-        // get rusttube id object from raw id
+        // get rusttube id object from raw video id
         let id = match rustube::Id::from_str(&self.id) {
             Ok(some) => {
                 some 
@@ -71,6 +71,7 @@ impl InitializedAudioExtractor {
                 return Err(format!("could not create video object from id for reason {e}"));
             }
         };
+        
         //get desired audio stream
         let audio_stream_list : Vec<&rustube::Stream> = video_obj
         .streams()
@@ -78,13 +79,12 @@ impl InitializedAudioExtractor {
         .filter(|stream| stream.includes_audio_track && !stream.includes_video_track)
         .collect();
 
-        /*let audio_stream_position = audio_stream_list.iter().position(|stream| stream.mime.to_string() == "audio/mp4").unwrap_or(0);
-        audio_stream = audio_stream_list.get(audio_stream_position).copied();*/
-        let mut audio_stream = audio_stream_list.clone().into_iter().find(|stream| stream.mime.to_string() == "audio/mp4");
-
+        //set a temporary file name with hopes of no collision, if this is parallelized
         let mut file_name = "temp_".to_string();
         file_name = file_name + &Uuid::new_v4().to_string();
 
+        //attempt to find the mp4 audio stream
+        let mut audio_stream = audio_stream_list.clone().into_iter().find(|stream| stream.mime.to_string() == "audio/mp4");
         {
             let mut file_extension: &str = ".mp4";
 
@@ -105,10 +105,11 @@ impl InitializedAudioExtractor {
                 return Err("Could not find valid audio format".to_string());
             }
 
+            //appemd file extensions since we now know the audio format
             file_name.push_str(file_extension);
          }
 
-        //append file name to path
+        //append file name to path for full write path
         let path = path.join(file_name);
 
         //attempt to download video
@@ -120,7 +121,8 @@ impl InitializedAudioExtractor {
                         path
                     }
                     Err(e) => {
-                        return Err(format!("Could not download video to {}: {}", path.as_os_str().to_str().unwrap(), e));
+                        //TODO remove unwrap here
+                        return Err(format!("Could not download video to {}: {}", path.as_os_str().to_str().unwrap_or_default(), e));
                     }
                 }
             }
@@ -130,13 +132,8 @@ impl InitializedAudioExtractor {
             }
         };
 
-        // get os path to video
-        //let str_path_to_video = path_to_video.as_os_str().to_str().unwrap();
-
         //get video information
-        let video_info: &VideoInfo = video_obj.video_info();
-
-        let video_details: &rustube::VideoDetails = video_info.player_response.video_details.as_ref();
+        let video_details: &rustube::VideoDetails = video_obj.video_info().player_response.video_details.as_ref();
     
         //create copies of needed data
         let video_title = video_details.title.clone();
@@ -148,9 +145,3 @@ impl InitializedAudioExtractor {
         return Ok(finished_audio_obj);
     }
 }
-
-//factory that has
-//url()
-//download()
-
-//returning title and other data object with it

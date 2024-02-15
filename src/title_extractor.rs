@@ -6,9 +6,7 @@ use regex::Regex;
 //const space_replace_regex = ("[ ]+", " ");
 //let const sepeerator_regex = ("[^A-Za-z0-9]+");
 
-pub struct EmptyTitleExtractor {
-
-}
+pub struct EmptyTitleExtractor; 
 
 pub struct InitializedTitleExtractor {
     title: String
@@ -33,27 +31,27 @@ impl EmptyTitleExtractor {
 
 impl InitializedTitleExtractor {
     pub fn extract_from_title(&self) -> Result<FinishedTitleExtractor, String> {
+        //TODO docs
+        //TODO get rid of unwraps
+
         //replace all | & @ \\ \" / (n spaces to 1 sapace)
         //-> any sequence of special charaters is a seperator, getting rid of all sequence of spaces with one space
-        let space_regex = Regex::new(r"([ ]+)").unwrap();
-        let title_seperator_regex = Regex::new(r"[^A-Za-z0-9]+").unwrap();
+        let space_regex = Regex::new(r"([ ]{2,})").unwrap();
+        let title_seperator_regex = Regex::new(r"[-]+").unwrap();
 
         let title: String = space_regex.replace_all(&self.title, " ").deref().to_string();
 
         let song_info: (String, String) = match title_seperator_regex.captures(&self.title) {
             Some(matches) => {
-                if matches.len() == 1 {
+                if matches.len() >= 1 {
                     // can safely unwrap since first match is guaranteed to be non-null
-                    let first_match = matches.get(0).unwrap();
+                    let split_match = matches.get(matches.len() - 1).unwrap();
 
-                    let song_name = title.chars().take(first_match.start()).skip(0).collect::<String>();
-                    let song_artist = title.chars().skip(first_match.end()).take(&self.title.len() - first_match.end()).collect::<String>();
+                    let song_name = title.chars().take(split_match.start()).collect::<String>();
+                    let song_artist = title.chars().skip(split_match.end() + 1).take(&self.title.len() - split_match.end() - 1).collect::<String>();
 
                     (song_name, song_artist)
                 }
-                /*else if (matches.len() > 1) {
-                    //deal with this case differently?
-                }*/
                 else {
                     return Err(format!("no matches found for title {}, ...TODO", self.title));
                 }

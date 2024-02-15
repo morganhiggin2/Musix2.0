@@ -13,18 +13,15 @@ fn main() {
     let path_to_video = rustube::blocking::download_worst_quality(url).unwrap();
     let str_path_to_video = path_to_video.as_os_str().to_str().unwrap();
     */
-    let current_working_directory: PathBuf = std::env::current_dir().unwrap();
-
-    //append relative path to current working directory
-    let audio_directory: PathBuf = current_working_directory.join("data").join("audio").join("file_1.mp4");
-    
     let audio_extractor: InitializedAudioExtractor = EmptyAudioExtractor::init("y-bt-KUb0Nc");
     let audio_extractor: FinishedAudioExtractor = audio_extractor.download().unwrap();
 
     let title_extractor: InitializedTitleExtractor = EmptyTitleExtractor::init(audio_extractor.title().clone());
     let title_extractor: FinishedTitleExtractor = title_extractor.extract_from_title().unwrap();
 
-    format!("song is at {} with title {} and artist {} by video author {}", audio_extractor.write_path().as_os_str().to_str().unwrap(), audio_extractor.title(), title_extractor.artist(), audio_extractor.author()); 
+    println!("the total song title is {}", audio_extractor.title().clone());
+
+    println!("song is at {} with title {}, name {}, and artist {} by video author {}", audio_extractor.write_path().as_os_str().to_str().unwrap(), audio_extractor.title(), title_extractor.name(), title_extractor.artist(), audio_extractor.author()); 
     /*
     let url: &str = "https://www.youtube.com/watch?v=y-bt-KUb0Nc&list=PL5MlDErkUccBvnU74GlkuNmCifkfLf1o8";
 
