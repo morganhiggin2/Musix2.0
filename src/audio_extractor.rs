@@ -41,6 +41,7 @@ impl EmptyAudioExtractor {
     }
 }
 
+//TODO add audio extension type to finished audio extactor, maybe Minetype enum 
 impl InitializedAudioExtractor {
     pub fn download(&self) -> Result<FinishedAudioExtractor, String> {
         // set directoryt that the file will be written to 
@@ -86,13 +87,13 @@ impl InitializedAudioExtractor {
         //attempt to find the mp4 audio stream
         let mut audio_stream = audio_stream_list.clone().into_iter().find(|stream| stream.mime.to_string() == "audio/mp4");
         {
-            let mut file_extension: &str = ".mp4";
+            let mut file_extension: &str = ".m4a";
 
             //if desired audio stream is not found, try other acceptable ones
             if audio_stream == None {
                 audio_stream = audio_stream_list.clone().into_iter().find(|stream| stream.mime.to_string() == "audio/mp3");
                 
-                file_extension = ".mp3";
+                file_extension = ".mp4";
             }
 
             if audio_stream == None {
@@ -100,6 +101,7 @@ impl InitializedAudioExtractor {
 
                 file_extension = ".wav";
             }
+            //future supported formats could be mp3 or wave, but have to adapt audio tag appender
 
             if audio_stream == None {
                 return Err("Could not find valid audio format".to_string());
