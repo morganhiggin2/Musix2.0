@@ -8,7 +8,8 @@ use crate::audio_tag_appender::{EmptyAudioTagAppender, InitializedAudioTagAppend
 pub mod audio_extractor;
 pub mod title_extractor;
 pub mod audio_tag_appender;
-pub mod playlist_extractor;
+pub mod youtube_playlist_extractor;
+pub mod database;
 
 use audiotags::{Tag, MimeType};
 
