@@ -44,7 +44,7 @@ impl EmptyAudioExtractor {
 //TODO add audio extension type to finished audio extactor, maybe Minetype enum 
 impl InitializedAudioExtractor {
     pub fn download(&self) -> Result<FinishedAudioExtractor, String> {
-        // set directoryt that the file will be written to 
+        // set directory that the file will be written to 
         let current_working_directory: PathBuf = match std::env::current_dir() {
             Ok(val) => val,
             Err(e) => {
@@ -65,9 +65,7 @@ impl InitializedAudioExtractor {
          
         //get video object 
         let video_obj = match rustube::blocking::Video::from_id(id.into_owned()) {
-            Ok(some) => {
-                some
-            }
+            Ok(some) => some, 
             Err(e) => {
                 return Err(format!("could not create video object from id for reason {e}"));
             }
@@ -119,9 +117,7 @@ impl InitializedAudioExtractor {
             Some(stream) => {
                 //audio stream found, download audio
                 match stream.blocking_download_to(path.clone()) {
-                    Ok(_) => {
-                        path
-                    }
+                    Ok(_) => path, 
                     Err(e) => {
                         //TODO remove unwrap here
                         return Err(format!("Could not download video to {}: {}", path.as_os_str().to_str().unwrap_or_default(), e));
