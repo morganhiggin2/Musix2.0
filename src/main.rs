@@ -10,11 +10,20 @@ pub mod title_extractor;
 pub mod audio_tag_appender;
 pub mod youtube_playlist_extractor;
 pub mod database;
+pub mod command_line_extractor;
+pub mod settings_parser;
+pub mod process;
 
 use audiotags::{Tag, MimeType};
 
 //TODO create directory if deleted
 fn main() {
+    //parse command line arguments
+    let try_failed = command_line_extractor::parse_args();
+
+
+
+    /*
     let audio_extractor: InitializedAudioExtractor = EmptyAudioExtractor::init("y-bt-KUb0Nc");
     let audio_extractor: FinishedAudioExtractor = audio_extractor.download().unwrap();
 
@@ -27,6 +36,16 @@ fn main() {
 
     let tag_appender: InitializedAudioTagAppender = EmptyAudioTagAppender::init(&audio_extractor);
     let tag_appender: FinalizedAudioTagAppender = tag_appender.append_metadata().unwrap();
+    */
+
+    //parse playlist file
+
+    //add and remove playlists as found in file
+
+    //for each playlist
+        //download each new song
+    
+    //update database
 }
 
 /*anytime after 2pm november 17th or anytime that weekend works for me. look foward to hearing back from you soon. */
