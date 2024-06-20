@@ -1,9 +1,12 @@
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::thread::current;
+use database::{Database};
 use rustube::{self, tokio::stream};
 use crate::audio_extractor::{EmptyAudioExtractor, InitializedAudioExtractor, FinishedAudioExtractor};
 use crate::title_extractor::{EmptyTitleExtractor, InitializedTitleExtractor, FinishedTitleExtractor};
 use crate::audio_tag_appender::{EmptyAudioTagAppender, InitializedAudioTagAppender, FinalizedAudioTagAppender};
+use lazy_static::lazy_static;
 
 pub mod audio_extractor;
 pub mod title_extractor;
@@ -15,6 +18,11 @@ pub mod settings_parser;
 pub mod process;
 
 use audiotags::{Tag, MimeType};
+
+// Global context
+lazy_static! {
+    static ref database_context: Mutex<Database> = Mutex::<Database>::new(Database::UninitializedDatabase(()));
+}
 
 //TODO create directory if deleted
 fn main() {

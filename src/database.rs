@@ -1,11 +1,19 @@
 use sqlite::{self, State};
 
-pub struct DatabaseConnection {
+pub enum Database {
+    UninitializedDatabase(UninitializedDatabase),
+    InitializedDatabase(InitializedDatabase)
+}
+pub struct UninitializedDatabase {
+
+}
+pub struct InitializedDatabase {
     connection: sqlite::Connection
 }
 
-impl DatabaseConnection {
-    fn new() -> Result<DatabaseConnection, String>{
+impl InitializedDatabase {
+    /// Create an InitializedDatabase from a UnintializedDatabase
+    pub fn new(_: UninitializedDatabase) -> Result<InitializedDatabase, String>{
         //initialize the connection
         let connection = sqlite::open("../data/sqlite").unwrap();
 
@@ -28,7 +36,7 @@ impl DatabaseConnection {
             }
         }
 
-        return Ok(DatabaseConnection {
+        return Ok(InitializedDatabase {
             connection: connection
         });
     }

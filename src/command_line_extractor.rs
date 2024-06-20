@@ -55,6 +55,7 @@ pub fn parse_args() -> Result<(), String> {
 
 /// Create playlist with name and id
 pub fn handle_create_playlist(args: CreatePlaylistArguments) -> Result<(), String> {
+
     
     return Ok(());
 }

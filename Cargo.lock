@@ -11,6 +11,7 @@ dependencies = [
  "diesel",
  "futures",
  "getset",
+ "lazy_static",
  "regex",
  "rustube",
  "serde",
