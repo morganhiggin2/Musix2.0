@@ -38,7 +38,7 @@ impl DatabaseConnection {
         let query = format!("SELECT * FROM downloaded_videos WHERE playlist_id like {}", playlist_id);
 
         //generate prepared statment
-        let mut statement = match self.connection.prepare(query) {
+        let mut statement = match self.connection.prepare(query.to_owned()) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!("Error creating perpared statement {}: {}", query, e));

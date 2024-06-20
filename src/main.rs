@@ -20,10 +20,7 @@ use audiotags::{Tag, MimeType};
 fn main() {
     //parse command line arguments
     let try_failed = command_line_extractor::parse_args();
-
-
-
-    /*
+    
     let audio_extractor: InitializedAudioExtractor = EmptyAudioExtractor::init("y-bt-KUb0Nc");
     let audio_extractor: FinishedAudioExtractor = audio_extractor.download().unwrap();
 
@@ -36,7 +33,7 @@ fn main() {
 
     let tag_appender: InitializedAudioTagAppender = EmptyAudioTagAppender::init(&audio_extractor);
     let tag_appender: FinalizedAudioTagAppender = tag_appender.append_metadata().unwrap();
-    */
+   
 
     //parse playlist file
 
