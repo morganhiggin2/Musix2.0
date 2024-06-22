@@ -2,7 +2,7 @@ use std::{ops::{Deref, DerefMut}, sync::Mutex};
 
 use clap::{Args, Parser, Subcommand};
 
-use crate::{database::{Database, InitializedDatabase, UninitializedDatabase}, database_context};
+use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabase}, database_context};
 
 //TODO implement action for create playlist, including genre
 //TODO implement actions to delete playlist
@@ -36,12 +36,12 @@ pub struct DeletePlaylistArguments {
     name: String
 }
 
-pub fn parse_args() -> Result<(), String> {
+pub fn parse_args(database_context: &mut Database) -> Result<(), String> {
     let args = App::parse();
 
     match args.command {
         Command::CreatePlaylist(args) => {
-            handle_create_playlist(args)?
+            handle_create_playlist(args, database_context)?
         }
         Command::DeletePlaylist(args) => {
             handle_delete_playlist(args)?    
@@ -58,25 +58,10 @@ pub fn parse_args() -> Result<(), String> {
 }
 
 /// Create playlist with name and id
-pub fn handle_create_playlist(args: CreatePlaylistArguments) -> Result<(), String> {
-    // aquire lock on database
-    let database_box_mutex = match database_context.lock() {
-        Ok(some) => some,
-        Err(e) => {
-            return Err(format!("Cannot aquire database lock: {}", e.to_string()));
-        }
-    };
+pub fn handle_create_playlist(args: CreatePlaylistArguments, database_context: &mut Database) -> Result<(), String> {
+    // Initialize database if it has not been initialized yet 
 
-    let database_box = *database_box_mutex;
-
-    let initialized_database = match database_box {
-        Database::UninitializedDatabase(database) => {
-            InitializedDatabase::new(database)?
-        }
-        Database::InitializedDatabase(database) => database
-    };
-
-    initialized_database.put_playlist(args.playlist_id, args.genre);
+    //initialized_database.put_playlist(args.playlist_id, args.genre);
     
     return Ok(());
 }

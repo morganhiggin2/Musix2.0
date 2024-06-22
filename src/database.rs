@@ -3,6 +3,7 @@ use sqlite::{self, State};
 pub struct Database {
     state: DatabaseState 
 }
+
 pub enum DatabaseState {
     UninitializedDatabase(UninitializedDatabase),
     InitializedDatabase(InitializedDatabase)
@@ -12,6 +13,7 @@ pub enum DatabaseState {
 pub struct UninitializedDatabase {
 
 }
+
 pub struct InitializedDatabase {
     connection: sqlite::Connection
 }
@@ -25,19 +27,53 @@ impl Default for Database {
 }
 
 impl Database {
-    pub fn implement(&mut self) -> Result<(), String> {
-        match self.state {
-            DatabaseState::UninitializedDatabase(_) => {
-                self.state = DatabaseState::InitializedDatabase(self.state)?
+    /// Initialize the database if the database has not been initialized 
+    fn initialize_if_required(&mut self) -> Result<(), String> {
+        match &mut self.state {
+            DatabaseState::UninitializedDatabase(state) => {
+                let new_state = match InitializedDatabase::new(state) {
+                    Ok(some) => DatabaseState::InitializedDatabase(some),
+                    Err(e) => {
+                        return Err(e)
+                    }
+                };
+
+                self.state = new_state;
+
+                return Ok(());
             }
-            DatabaseState::InitializedDatabase(_) => Ok(())
-        }
+            DatabaseState::InitializedDatabase(_) => {
+                return Ok(())
+            } 
+        };
+    }
+
+    fn get_initialized_state_always(&mut self) -> Result<&mut InitializedDatabase, String> {
+        self.initialize_if_required()?;
+
+
+        // We know for a fact that by this point the state will be an initiailized database
+        match &mut self.state {
+            DatabaseState::UninitializedDatabase(state) => {
+                // And thus this path should never be traversed
+                panic!();
+            }
+            DatabaseState::InitializedDatabase(state) => {
+                return Ok(state);
+            } 
+        };
+    }
+
+    pub fn get_downloaded_videos(&mut self, playlist_id: String) -> Result<Vec<String>, String> {
+        let initialzied_database = self.get_initialized_state_always()?;
+
+        return initialzied_database.get_downloaded_videos(playlist_id);
     }
 }
 
 impl InitializedDatabase {
     /// Create an InitializedDatabase from a UnintializedDatabase
-    pub fn new(_: UninitializedDatabase) -> Result<InitializedDatabase, String> {
+    pub fn new(_: &mut UninitializedDatabase) -> Result<InitializedDatabase, String> {
         //initialize the connection
         let connection = sqlite::open("../data/sqlite").unwrap();
 

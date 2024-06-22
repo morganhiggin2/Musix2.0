@@ -19,14 +19,11 @@ pub mod process;
 
 use audiotags::{Tag, MimeType};
 
-// Global context
-lazy_static! {
-    //static ref database_context: Mutex<Box<Database>> = Mutex::<Box<Database>>::new(Box::new(Database::UninitializedDatabase(UninitializedDatabase::default())));
-    static ref database_context: Mutex<Database> = Mutex::<Database>::new(Database::default());
-}
-
 //TODO create directory if deleted
 fn main() {
+    // create contexts
+    let database_context = Database::default();
+
     //parse command line arguments
     let try_failed = command_line_extractor::parse_args();
     
