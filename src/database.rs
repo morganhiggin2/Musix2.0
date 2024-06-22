@@ -1,9 +1,14 @@
 use sqlite::{self, State};
 
-pub enum Database {
+pub struct Database {
+    state: DatabaseState 
+}
+pub enum DatabaseState {
     UninitializedDatabase(UninitializedDatabase),
     InitializedDatabase(InitializedDatabase)
 }
+
+#[derive(Default)]
 pub struct UninitializedDatabase {
 
 }
@@ -11,9 +16,28 @@ pub struct InitializedDatabase {
     connection: sqlite::Connection
 }
 
+impl Default for Database {
+    fn default() -> Self {
+        return Database {
+            state: DatabaseState::UninitializedDatabase(UninitializedDatabase::default())
+        };
+    }
+}
+
+impl Database {
+    pub fn implement(&mut self) -> Result<(), String> {
+        match self.state {
+            DatabaseState::UninitializedDatabase(_) => {
+                self.state = DatabaseState::InitializedDatabase(self.state)?
+            }
+            DatabaseState::InitializedDatabase(_) => Ok(())
+        }
+    }
+}
+
 impl InitializedDatabase {
     /// Create an InitializedDatabase from a UnintializedDatabase
-    pub fn new(_: UninitializedDatabase) -> Result<InitializedDatabase, String>{
+    pub fn new(_: UninitializedDatabase) -> Result<InitializedDatabase, String> {
         //initialize the connection
         let connection = sqlite::open("../data/sqlite").unwrap();
 
@@ -41,7 +65,7 @@ impl InitializedDatabase {
         });
     }
 
-    fn get_downloaded_videos(self, playlist_id: String) -> Result<Vec<String>, String> {
+    pub fn get_downloaded_videos(&self, playlist_id: String) -> Result<Vec<String>, String> {
         //create query
         let query = format!("SELECT * FROM downloaded_videos WHERE playlist_id like {}", playlist_id);
 
@@ -73,9 +97,11 @@ impl InitializedDatabase {
         return Ok(youtube_video_ids);
     }
 
-    fn put_downloaded_video(self, playlist_id: String, video_id: String, failed: bool) -> Result<(), String> {
+    /// Put downloaded video information into database
+    ///   If already exists, will silently ignore
+    pub fn put_downloaded_video(&self, playlist_id: String, video_id: String, failed: bool) -> Result<(), String> {
         //create query
-        let query = format!("INSERT INTO downloaded_videos VALUES ({}, {}, {})", video_id, playlist_id, failed);
+        let query = format!("INSERT INTO downloaded_videos VALUES ({}, {}, {}) ON CONFLICT({video_id}) DO NOTHING", video_id, playlist_id, failed);
 
         // execute statement
         let statement_result = self.connection.execute(&query); 
@@ -91,9 +117,11 @@ impl InitializedDatabase {
         return Ok(());
     }
 
-    fn put_playlist(self, playlist_id: String, genre: String) -> Result<(), String> {
+    /// Put playlist information into database
+    ///   If already exists, will silently ignore
+    pub fn put_playlist(&self, playlist_id: String, genre: String) -> Result<(), String> {
         //create query
-        let query = format!("INSERT INTO playlists VALUES ({}, {})", playlist_id, genre);
+        let query = format!("INSERT INTO playlists VALUES ({}, {}) ON CONFLICT({playlist_id}) DO NOTHING", playlist_id, genre);
 
         //generate statement
         let statement_result = self.connection.execute(&query); 
@@ -109,7 +137,7 @@ impl InitializedDatabase {
         return Ok(());
     }
 
-    fn get_all_playlists(self) -> Result<Vec<String>, String> {
+    pub fn get_all_playlists(&self) -> Result<Vec<String>, String> {
         //create query
         let query = "SELECT * FROM playlists";
         //generate prepared statment

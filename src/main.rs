@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::thread::current;
-use database::{Database};
+use database::{Database, UninitializedDatabase};
 use rustube::{self, tokio::stream};
 use crate::audio_extractor::{EmptyAudioExtractor, InitializedAudioExtractor, FinishedAudioExtractor};
 use crate::title_extractor::{EmptyTitleExtractor, InitializedTitleExtractor, FinishedTitleExtractor};
@@ -21,7 +21,8 @@ use audiotags::{Tag, MimeType};
 
 // Global context
 lazy_static! {
-    static ref database_context: Mutex<Database> = Mutex::<Database>::new(Database::UninitializedDatabase(()));
+    //static ref database_context: Mutex<Box<Database>> = Mutex::<Box<Database>>::new(Box::new(Database::UninitializedDatabase(UninitializedDatabase::default())));
+    static ref database_context: Mutex<Database> = Mutex::<Database>::new(Database::default());
 }
 
 //TODO create directory if deleted
