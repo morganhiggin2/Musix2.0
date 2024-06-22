@@ -2,7 +2,7 @@ use std::{ops::{Deref, DerefMut}, sync::Mutex};
 
 use clap::{Args, Parser, Subcommand};
 
-use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabase}, database_context};
+use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabase}};
 
 //TODO implement action for create playlist, including genre
 //TODO implement actions to delete playlist
@@ -33,7 +33,7 @@ pub struct CreatePlaylistArguments {
 
 #[derive(Debug, Args)]
 pub struct DeletePlaylistArguments {
-    name: String
+    playlist_id: String
 }
 
 pub fn parse_args(database_context: &mut Database) -> Result<(), String> {
@@ -44,10 +44,10 @@ pub fn parse_args(database_context: &mut Database) -> Result<(), String> {
             handle_create_playlist(args, database_context)?
         }
         Command::DeletePlaylist(args) => {
-            handle_delete_playlist(args)?    
+            handle_delete_playlist(args, database_context)?    
         }
         Command::ListPlaylists => {
-            todo!();
+            handle_list_playlists(database_context)? 
         }
         Command::Run => {
             todo!();
@@ -59,69 +59,28 @@ pub fn parse_args(database_context: &mut Database) -> Result<(), String> {
 
 /// Create playlist with name and id
 pub fn handle_create_playlist(args: CreatePlaylistArguments, database_context: &mut Database) -> Result<(), String> {
-    // Initialize database if it has not been initialized yet 
-
-    //initialized_database.put_playlist(args.playlist_id, args.genre);
-    
-    return Ok(());
+    return database_context.put_playlist(args.playlist_id, args.genre);
 }
 
 /// Delete playlist by name 
-pub fn handle_delete_playlist(args: DeletePlaylistArguments) -> Result<(), String> {
-    // Check if exists
+pub fn handle_delete_playlist(args: DeletePlaylistArguments, database_context: &mut Database) -> Result<(), String> {
+    return database_context.delete_playlist(args.playlist_id);
+}
+
+/// List all playlists
+pub fn handle_list_playlists(database_context: &mut Database) -> Result<(), String> {
+    let playlists =  database_context.get_all_playlists()?;
+    
+    // Print the playlists to the console
+    // Currently just the id
+    for playlist in playlists {
+        println!("Playlist with id {}", playlist)
+    }
 
     return Ok(());
 }
 
-pub fn handle_list_playlists() -> Result<Vec<>, String> {
-
+// Handle run, which will attempt to download all the undownloaded videos from all the playlists in the database
+pub fn handle_run(database_context: &mut Database) -> Result<(), String> {
+    todo!();
 }
-
-/*let foo = Command::new("foo")
-        .description("Shows foo")
-        .options(|app| {
-            app.arg(
-                Arg::with_name("debug")
-                    .short("d")
-                    .help("Prints debug information verbosely"),
-            )
-        })
-        // Putting argument types here for clarity
-        .runner(|args: &str, matches: &ArgMatches<'_>| {
-            let debug = clap::value_t!(matches, "debug", bool).unwrap_or_default();
-            println!("Running foo, env = {}, debug = {}", args, debug);
-            Ok(())
-        });
-
-    let bar = Command::new("bar")
-        .description("Shows bar")
-        // Putting argument types here for clarity
-        .runner(|args: &str, _matches: &ArgMatches<'_>| {
-            println!("Running bar, env = {}", args);
-            Ok(())
-        });
-
-    Commander::new()
-        .options(|app| {
-            app.arg(
-                Arg::with_name("environment")
-                    .short("e")
-                    .long("env")
-                    .global(true)
-                    .takes_value(true)
-                    .value_name("STRING")
-                    .help("Sets an environment value, defaults to \"dev\""),
-            )
-        })
-        // `Commander::args()` derives arguments to pass to subcommands.
-        // Notice all subcommands (i.e. `foo` and `bar`) will accept `&str` as arguments.
-        .args(|_args, matches| matches.value_of("environment").unwrap_or("dev"))
-        // Add all subcommands
-        .add_cmd(foo)
-        .add_cmd(bar)
-        // To handle when no subcommands match
-        .no_cmd(|_args, _matches| {
-            println!("No subcommand matched");
-            Ok(())
-        })
-        .run(); */

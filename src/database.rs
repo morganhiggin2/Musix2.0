@@ -64,10 +64,35 @@ impl Database {
         };
     }
 
+    // Wrapper for initiazlied database calls
     pub fn get_downloaded_videos(&mut self, playlist_id: String) -> Result<Vec<String>, String> {
         let initialzied_database = self.get_initialized_state_always()?;
 
         return initialzied_database.get_downloaded_videos(playlist_id);
+    }
+
+    pub fn put_downloaded_video(&mut self, playlist_id: String, video_id: String, failed: bool) -> Result<(), String> {
+        let initialzied_database = self.get_initialized_state_always()?;
+
+        return initialzied_database.put_downloaded_video(playlist_id, video_id, failed);
+    }
+    
+    pub fn put_playlist(&mut self, playlist_id: String, genre: String) -> Result<(), String> {
+        let initialzied_database = self.get_initialized_state_always()?;
+
+        return initialzied_database.put_playlist(playlist_id, genre);
+    }
+
+    pub fn delete_playlist(&mut self, playlist_id: String) -> Result<(), String> {
+        let initialzied_database = self.get_initialized_state_always()?;
+
+        return initialzied_database.delete_playlist(playlist_id);
+    }
+
+    pub fn get_all_playlists(&mut self) -> Result<Vec<String>, String> {
+        let initialzied_database = self.get_initialized_state_always()?;
+
+        return initialzied_database.get_all_playlists();
     }
 }
 
@@ -167,6 +192,40 @@ impl InitializedDatabase {
             Ok(_) => (),
             Err(e) => {
                 return Err(format!("Could not execute put downloaded videos query: {}: {}", query, e));
+            }
+        }
+
+        return Ok(());
+    }
+
+    /// Delete playlist from database
+    ///     If the playlist does not exist, will do nothing 
+    pub fn delete_playlist(&self, playlist_id: String) -> Result<(), String> {
+        //delete all downloads videos from the downloaded videos table with the playlist id
+        let query = format!("DELETE FROM downloaded_videos WHERE playlist_id = {}", playlist_id);
+
+        // execute statement
+        let statement_result = self.connection.execute(&query); 
+
+        //execute query, parse result
+        match statement_result {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(format!("Could not execute delete downloaded videos of delete playlist query: {}: {}", query, e));
+            }
+        }
+
+        //delete the playlist from the playlists database
+        let query = format!("DELETE FROM playlists WHERE playlist_id = {}", playlist_id);
+        
+        // execute statement
+        let statement_result = self.connection.execute(&query); 
+
+        //execute query, parse result
+        match statement_result {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(format!("Could not execute delete playst of delete playlist query: {}: {}", query, e));
             }
         }
 
