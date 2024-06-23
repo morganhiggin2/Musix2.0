@@ -1,4 +1,4 @@
-use sqlite::{self, State};
+use sqlite::{self, Connection, OpenFlags, State};
 
 pub struct Database {
     state: DatabaseState 
@@ -100,7 +100,8 @@ impl InitializedDatabase {
     /// Create an InitializedDatabase from a UnintializedDatabase
     pub fn new(_: &mut UninitializedDatabase) -> Result<InitializedDatabase, String> {
         //initialize the connection
-        let connection = sqlite::open("../data/sqlite").unwrap();
+        let open_connection_flags = OpenFlags::new().with_create().with_read_write();
+        let connection = Connection::open_with_flags("data/database/sqlite.db", open_connection_flags).unwrap();
 
         //create / re-establish presence of necessary tables 
         let create_table_queries = [

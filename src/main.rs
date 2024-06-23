@@ -27,7 +27,7 @@ fn main() {
     //parse command line arguments
     let try_failed = command_line_extractor::parse_args(&mut database_context);
     
-    let audio_extractor: InitializedAudioExtractor = EmptyAudioExtractor::init("y-bt-KUb0Nc");
+    /*let audio_extractor: InitializedAudioExtractor = EmptyAudioExtractor::init("y-bt-KUb0Nc");
     let audio_extractor: FinishedAudioExtractor = audio_extractor.download().unwrap();
 
     let title_extractor: InitializedTitleExtractor = EmptyTitleExtractor::init(audio_extractor.title().clone());
@@ -48,7 +48,7 @@ fn main() {
     //for each playlist
         //download each new song
     
-    //update database
+    //update database*/
 }
 
 /*anytime after 2pm november 17th or anytime that weekend works for me. look foward to hearing back from you soon. */
