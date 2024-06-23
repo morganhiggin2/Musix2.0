@@ -1,4 +1,4 @@
-use sqlite::{self, Connection, OpenFlags, State};
+use rusqlite::{self, params, Row};
 
 pub struct Database {
     state: DatabaseState 
@@ -15,7 +15,7 @@ pub struct UninitializedDatabase {
 }
 
 pub struct InitializedDatabase {
-    connection: sqlite::Connection
+    connection: rusqlite::Connection
 }
 
 impl Default for Database {
@@ -100,8 +100,7 @@ impl InitializedDatabase {
     /// Create an InitializedDatabase from a UnintializedDatabase
     pub fn new(_: &mut UninitializedDatabase) -> Result<InitializedDatabase, String> {
         //initialize the connection
-        let open_connection_flags = OpenFlags::new().with_create().with_read_write();
-        let connection = Connection::open_with_flags("data/database/sqlite.db", open_connection_flags).unwrap();
+        let connection = rusqlite::Connection::open("data/database/sqlite.db").unwrap();
 
         //create / re-establish presence of necessary tables 
         let create_table_queries = [
@@ -112,12 +111,12 @@ impl InitializedDatabase {
         //for each create table query
         for create_table_query in create_table_queries.iter() {
             // statement
-            let statement_result = connection.execute(create_table_query); 
+            let statement_result = connection.execute(create_table_query, params!([])); 
 
             match statement_result {
                 Ok(_) => (),
                 Err(e) => {
-                    return Err(format!("Could not  create table statement: {}: {}", create_table_query, e));
+                    return Err(format!("Could not execute create table statement: {}: {}", create_table_query, e));
                 }
             }
         }
@@ -129,31 +128,40 @@ impl InitializedDatabase {
 
     pub fn get_downloaded_videos(&self, playlist_id: String) -> Result<Vec<String>, String> {
         //create query
-        let query = format!("SELECT * FROM downloaded_videos WHERE playlist_id like {}", playlist_id);
-
-        //generate prepared statment
-        let mut statement = match self.connection.prepare(query.to_owned()) {
-            Ok(some) => some,
-            Err(e) => {
-                return Err(format!("Error creating perpared statement {}: {}", query, e));
-            }
-        };
+        let query = "SELECT * FROM downloaded_videos WHERE playlist_id like ?1";
 
         //list of youtube video ids
         let mut youtube_video_ids: Vec<String> = Vec::new();
 
-        // prepared statement, process rows
-        while let Ok(State::Row) = statement.next(){
-            //get youtube video id column value from row
-            let youtube_video_id = match statement.read::<String, _>("youtube_video_id") {
+        //prepare statment
+        let mut statement = match self.connection.prepare(query) {
+            Ok(some) => some,
+            Err(e) => {
+                return Err(format!("Could not create prepared statement in get downloaded videos : {}: {}", query, e));
+            }
+        };
+
+        //execute query, map resulting rows
+        let videos = match statement.query_map([], |row| {
+            let row_str: String = row.get(0)?;
+            Ok(row_str)
+        })
+        {
+            Ok(some) => some,
+            Err(e) => {
+                return Err(format!("Could not execute prepared statement and collect row information in get downloaded videos: {}: {}", query, e));
+            }
+        };
+
+        for video_result in videos {
+            let video = match video_result {
                 Ok(some) => some,
                 Err(e) => {
-                    return Err(format!("Error getting column \'youtube_video_id\' from result set of query {}: {}", query, e));
+                    return Err(format!("Error fetching a row for prepared statement {} in get downloaded videos: {}", query, e));
                 }
             };
 
-            //add video id to list
-            youtube_video_ids.push(youtube_video_id);
+            youtube_video_ids.push(video);
         }
 
         return Ok(youtube_video_ids);
@@ -163,10 +171,10 @@ impl InitializedDatabase {
     ///   If already exists, will silently ignore
     pub fn put_downloaded_video(&self, playlist_id: String, video_id: String, failed: bool) -> Result<(), String> {
         //create query
-        let query = format!("INSERT INTO downloaded_videos VALUES ({}, {}, {}) ON CONFLICT({video_id}) DO NOTHING", video_id, playlist_id, failed);
+        let query = "INSERT INTO downloaded_videos VALUES (?1, ?2, ?3) ON CONFLICT(?1) DO NOTHING";
 
         // execute statement
-        let statement_result = self.connection.execute(&query); 
+        let statement_result = self.connection.execute(&query, params![video_id, playlist_id, failed]); 
 
         //execute query, parse result
         match statement_result {
@@ -183,18 +191,17 @@ impl InitializedDatabase {
     ///   If already exists, will silently ignore
     pub fn put_playlist(&self, playlist_id: String, genre: String) -> Result<(), String> {
         //create query
-        let query = format!("INSERT INTO playlists VALUES ({}, {}) ON CONFLICT({playlist_id}) DO NOTHING", playlist_id, genre);
+        //let query = format!("INSERT INTO playlistss VALUES ({}, {}) ON CONFLICT({playlist_id}) DO NOTHING", playlist_id, genre);
+        let query = "INSERT INTO playlists(playlist_id, genre) VALUES (?1, ?2)";
 
-        //generate statement
-        let statement_result = self.connection.execute(&query); 
 
-        //execute query, parse result
-        match statement_result {
-            Ok(_) => (),
+        //generate prepared statment
+        let mut statement = match self.connection.execute(&query, params![playlist_id, genre]) {
+            Ok(some) => some,
             Err(e) => {
-                return Err(format!("Could not execute put downloaded videos query: {}: {}", query, e));
+                return Err(format!("Error in executing perpared statement {}: {}", query, e));
             }
-        }
+        };
 
         return Ok(());
     }
@@ -203,32 +210,26 @@ impl InitializedDatabase {
     ///     If the playlist does not exist, will do nothing 
     pub fn delete_playlist(&self, playlist_id: String) -> Result<(), String> {
         //delete all downloads videos from the downloaded videos table with the playlist id
-        let query = format!("DELETE FROM downloaded_videos WHERE playlist_id = {}", playlist_id);
+        let query = "DELETE FROM downloaded_videos WHERE playlist_id = ?1";
 
         // execute statement
-        let statement_result = self.connection.execute(&query); 
-
-        //execute query, parse result
-        match statement_result {
-            Ok(_) => (),
+        let statement_result = match self.connection.execute(&query, params![playlist_id]) {
+            Ok(some) => some,
             Err(e) => {
                 return Err(format!("Could not execute delete downloaded videos of delete playlist query: {}: {}", query, e));
             }
-        }
+        };
 
         //delete the playlist from the playlists database
-        let query = format!("DELETE FROM playlists WHERE playlist_id = {}", playlist_id);
+        let query = "DELETE FROM playlists WHERE playlist_id = ?2";
         
         // execute statement
-        let statement_result = self.connection.execute(&query); 
-
-        //execute query, parse result
-        match statement_result {
-            Ok(_) => (),
+        let statement_result = match self.connection.execute(&query, params![playlist_id]) {
+            Ok(some) => some,
             Err(e) => {
                 return Err(format!("Could not execute delete playst of delete playlist query: {}: {}", query, e));
             }
-        }
+        };
 
         return Ok(());
     }
