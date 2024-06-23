@@ -25,7 +25,7 @@ fn main() {
     let mut database_context = Database::default();
 
     //parse command line arguments
-    let try_failed = command_line_extractor::parse_args(&mut database_context);
+    let try_failed = command_line_extractor::parse_args(&mut database_context).unwrap();
     
     /*let audio_extractor: InitializedAudioExtractor = EmptyAudioExtractor::init("y-bt-KUb0Nc");
     let audio_extractor: FinishedAudioExtractor = audio_extractor.download().unwrap();

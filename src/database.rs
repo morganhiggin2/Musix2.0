@@ -111,7 +111,7 @@ impl InitializedDatabase {
         //for each create table query
         for create_table_query in create_table_queries.iter() {
             // statement
-            let statement_result = connection.execute(create_table_query, params!([])); 
+            let statement_result = connection.execute(create_table_query, params![]); 
 
             match statement_result {
                 Ok(_) => (),
@@ -194,7 +194,6 @@ impl InitializedDatabase {
         //let query = format!("INSERT INTO playlistss VALUES ({}, {}) ON CONFLICT({playlist_id}) DO NOTHING", playlist_id, genre);
         let query = "INSERT INTO playlists(playlist_id, genre) VALUES (?1, ?2)";
 
-
         //generate prepared statment
         let mut statement = match self.connection.execute(&query, params![playlist_id, genre]) {
             Ok(some) => some,
@@ -221,7 +220,7 @@ impl InitializedDatabase {
         };
 
         //delete the playlist from the playlists database
-        let query = "DELETE FROM playlists WHERE playlist_id = ?2";
+        let query = "DELETE FROM playlists WHERE playlist_id = ?1";
         
         // execute statement
         let statement_result = match self.connection.execute(&query, params![playlist_id]) {
@@ -237,31 +236,41 @@ impl InitializedDatabase {
     pub fn get_all_playlists(&self) -> Result<Vec<String>, String> {
         //create query
         let query = "SELECT * FROM playlists";
-        //generate prepared statment
+
+        //list of playlist ids 
+        let mut playlists: Vec<String> = Vec::new();
+
+        //prepare statment
         let mut statement = match self.connection.prepare(query) {
             Ok(some) => some,
             Err(e) => {
-                return Err(format!("Error creating perpared statement {}: {}", query, e));
+                return Err(format!("Could not create prepared statement in get all playlists: {}: {}", query, e));
             }
         };
 
-        //list of playlist ids
-        let mut playlist_ids: Vec<String> = Vec::new();
+        //execute query, map resulting rows
+        let playlists_results = match statement.query_map([], |row| {
+            let row_str: String = row.get(0)?;
+            Ok(row_str)
+        })
+        {
+            Ok(some) => some,
+            Err(e) => {
+                return Err(format!("Could not execute prepared statement and collect row information in get all playlists: {}: {}", query, e));
+            }
+        };
 
-        // prepared statement, process rows
-        while let Ok(State::Row) = statement.next(){
-            //get youtube video id column value from row
-            let playlist_id = match statement.read::<String, _>("playlist_id") {
+        for playlist_result in playlists_results {
+            let playlist = match playlist_result {
                 Ok(some) => some,
                 Err(e) => {
-                    return Err(format!("Error getting column \'playlist_id\' from result set of query {}: {}", query, e));
+                    return Err(format!("Error fetching a row for prepared statement {} in get downloaded videos: {}", query, e));
                 }
             };
 
-            //add video id to list
-            playlist_ids.push(playlist_id);
+            playlists.push(playlist);
         }
 
-        return Ok(playlist_ids);
+        return Ok(playlists);
     }
 }
