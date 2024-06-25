@@ -2,7 +2,7 @@ use std::{ops::{Deref, DerefMut}, sync::Mutex};
 
 use clap::{Args, Parser, Subcommand};
 
-use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabase}};
+use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabase}, youtube_playlist_extractor::get_video_links};
 
 //TODO implement action for create playlist, including genre
 //TODO implement actions to delete playlist
@@ -50,7 +50,7 @@ pub fn parse_args(database_context: &mut Database) -> Result<(), String> {
             handle_list_playlists(database_context)? 
         }
         Command::Run => {
-            todo!();
+            handle_run(database_context)?
         }
     }    
 
@@ -69,7 +69,7 @@ pub fn handle_delete_playlist(args: DeletePlaylistArguments, database_context: &
 
 /// List all playlists
 pub fn handle_list_playlists(database_context: &mut Database) -> Result<(), String> {
-    let playlists =  database_context.get_all_playlists()?;
+    let playlists = database_context.get_all_playlists()?;
     
     // Print the playlists to the console
     // Currently just the id
@@ -82,5 +82,16 @@ pub fn handle_list_playlists(database_context: &mut Database) -> Result<(), Stri
 
 // Handle run, which will attempt to download all the undownloaded videos from all the playlists in the database
 pub fn handle_run(database_context: &mut Database) -> Result<(), String> {
+    // get list of playlists
+    let playlists = database_context.get_all_playlists()?;
+
+    // for each playlist
+    for playlist_id in playlists {
+        // get all videos in playlist
+        let playlist_video_ids = get_video_links(&playlist_id)?;
+
+        println!("{}", playlist_video_ids.len());
+    }
+
     todo!();
 }
