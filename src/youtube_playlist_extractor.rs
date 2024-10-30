@@ -1,343 +1,160 @@
-/*use std::str::FromStr;
-use rustube::tokio;
-use ytextract::{playlist::Id, Playlist};
-use futures::{executor, StreamExt};
-use tokio::runtime::Runtime;
+// Rust code using external crates
 
-pub fn get_video_links(playlist_id: &str) -> Result<Vec<String>, String> {
-    //create ytextract client
-    let client = ytextract::Client::new();
+use reqwest;
+use serde_json::{json, Value};
 
-    //create tokio runtime
-    let tokio_rt = match Runtime::new() {
-        Ok(some) => some,
-        Err(e) => {
-            return Err(format!("Unable to create tokio runtime in get video links method: {}", e));
-        }
-    };
+const GOOGLE_API_KEY: &str = include_str!("resources/api_key.txt");
 
-    //get playlist id for ytextract library 
-    let playlist_id_obj: Id = match Id::from_str(playlist_id) {
-        Ok(value) => value,
-        Err(e) => {
-            return Err(e.to_string());
-        }
-    };
+pub struct Video {
+    // Define Video struct fields her
+    video_id: String,
+    title: String,
+    channel_title: String,
+    published_at: String,
+}
 
-    //create playlist object from playlist url
-    //call main thread executor to run playlist stream future
-    let playlist: Playlist = match tokio_rt.block_on(client.playlist(playlist_id_obj)) {
-        Ok(some) => some,
-        Err(e) => {
-            return Err(e.to_string());
-        }
-    }; 
+pub async fn get_new_playlist_videos(playlist_id: String) -> Result<Vec<Video>, String> {
+    let mut playlist_videos = Vec::new();
+    let base_url = format!("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=25&playlistId={}&key={}&page_token=", playlist_id, GOOGLE_API_KEY);
 
-    let mut video_ids: Vec<String> = Vec::new();
+    let mut next_page = true;
+    let mut page_token = "";
 
-    //Put playlist object in boxed, pinning it to the local thread
-    let videos_stream = playlist.videos().boxed();
-    let videos = executor::block_on_stream(videos_stream);
+    // create reqwest client
+    let client = reqwest::Client::new();
 
-    //get urls from video
-    for video_iter_element in videos.enumerate(){
-        //Check if video information got successfully loaded
-        let video = match video_iter_element.1 {
+    // for each page in the pagnated result
+    while next_page {
+        // get the next page
+        let response = match client
+            .get(format!("{}{}", base_url, page_token))
+            .send()
+            .await
+        {
             Ok(some) => some,
             Err(e) => {
-                //Error handling video, warn of corrupt video link and move along video_iter_element.0
-                println!("Video with id {} is corrupt in playlist {}", video_iter_element.0, playlist_id);
-                continue;
+                return Err(format!(
+                    "Could not make request to google api: {}",
+                    e.to_string()
+                ));
             }
         };
 
-        video_ids.push(video.id().to_string());
-    }
+        let response_text = match response.text().await {
+            Ok(text) => text,
+            Err(e) => return Err(format!("Failed to get response text: {}", e)),
+        };
 
-    return Ok(video_ids);
-}*/
+        // get page json
+        let page_json: Value = serde_json::from_str(&response_text).unwrap();
 
-
-
-
-
-
-/*
-//Credit to YT Extractor
-use std::time::Duration;
-
-use serde::Serialize;
-
-use crate::{youtube::player_response, Error};
-
-const RETRYS: u32 = 5;
-const TIMEOUT: Duration = Duration::from_secs(30);
-const DUMP: bool = option_env!("YTEXTRACT_DUMP").is_some();
-const DUMP_ERR: bool = option_env!("YTEXTRACT_DUMP_ERR").is_some();
-const BASE_URL: &str = "https://youtubei.googleapis.com/youtubei/v1";
-const API_KEY: &str = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
-
-const CONTEXT_WEB: Context<'static> = Context {
-    client: Client {
-        hl: "en",
-        gl: "US",
-        client_name: "WEB",
-        client_version: "2.20210622.10.0",
-    },
-};
-
-const CONTEXT_ANDROID: Context<'static> = Context {
-    client: Client {
-        hl: "en",
-        gl: "US",
-        client_name: "ANDROID",
-        client_version: "16.05",
-    },
-};
-
-const CONTEXT_EMBEDDED: Context<'static> = Context {
-    client: Client {
-        hl: "en",
-        gl: "US",
-        client_name: "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
-        client_version: "2.0",
-    },
-};
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Context<'a> {
-    client: Client<'a>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Client<'a> {
-    hl: &'a str,
-    gl: &'a str,
-    client_name: &'a str,
-    client_version: &'a str,
-}
-
-pub enum ChannelPage {
-    About,
-}
-
-pub enum Browse {
-    Playlist(crate::playlist::Id),
-    Channel {
-        id: crate::channel::Id,
-        page: ChannelPage,
-    },
-    Continuation(String),
-}
-
-pub enum Next {
-    Video(crate::video::Id),
-    Continuation(String),
-}
-
-#[derive(Clone, Default)]
-pub struct Api {
-    pub(crate) http: reqwest::Client,
-}
-
-fn dump(endpoint: &'static str, response: &str) {
-    let _ = std::fs::create_dir(endpoint);
-    use std::time::SystemTime;
-    let time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("TIME");
-    std::fs::write(
-        &format!("{}/{}.json", endpoint, time.as_millis()),
-        &response,
-    )
-    .expect("Write");
-}
-
-impl Api {
-    async fn get<T: serde::de::DeserializeOwned, R: Serialize + Send + Sync>(
-        &self,
-        endpoint: &'static str,
-        request: R,
-        context: Context<'static>,
-    ) -> crate::Result<T> {
-        #[derive(Serialize)]
-        struct Request<R: Serialize> {
-            context: Context<'static>,
-            #[serde(flatten)]
-            request: R,
+        // if error exists
+        if page_json.get("error").is_some() {
+            return Err(format!(
+                "Error getting playlist information for playlist {}",
+                playlist_id
+            ));
         }
 
-        let request = Request { context, request };
-
-        let request = self
-            .http
-            .post(format!("{}/{}", BASE_URL, endpoint))
-            .header("X-Goog-Api-Key", API_KEY)
-            .json(&request)
-            .timeout(TIMEOUT);
-
-        let mut retry = 0;
-
-        loop {
-            let response = request
-                .try_clone()
-                .unwrap()
-                .send()
-                .await
-                .and_then(|x| x.error_for_status())
-                .map(|x| x.text());
-
-            match response {
-                Ok(res) => {
-                    let response = res.await?;
-
-                    let res = serde_json::from_str::<T>(&response);
-                    if DUMP || (DUMP_ERR && res.is_err()) {
-                        dump(endpoint, &response)
-                    }
-                    let res = res.expect("Failed to parse JSON");
-                    break Ok(res);
+        // get next page token
+        if let Some(next_page_token) = page_json.get("nextPageToken") {
+            page_token = match next_page_token.as_str() {
+                Some(token) => token,
+                None => {
+                    return Err(format!(
+                        "Could not get next page token from found next page token in json"
+                    ));
                 }
-                Err(err) => {
-                    if err.is_timeout() {
-                        if retry == RETRYS {
-                            log::error!("Timed out {} times. Stopping...", RETRYS);
-                            break Err(Error::Request(err));
-                        } else {
-                            log::warn!("Timeout reached, retrying...");
-                            retry += 1;
-                            continue;
-                        }
-                    } else {
-                        break Err(Error::Request(err));
-                    }
-                }
-            }
-        }
-    }
-
-    pub async fn streams(
-        &self,
-        id: crate::video::Id,
-    ) -> crate::Result<player_response::StreamPlayerResponse> {
-        #[derive(Debug, Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Request {
-            video_id: crate::video::Id,
-        }
-
-        let request = Request { video_id: id };
-        let res = self
-            .get("player", &request, CONTEXT_ANDROID)
-            .await
-            .and_then(
-                |x: player_response::Result<player_response::StreamPlayerResponse>| x.into_std(),
-            );
-
-        // If this is a age-restricted error, retry with an embedded player
-        if matches!(res, Err(crate::Error::Youtube(ref yt)) if yt.to_string().contains("age")) {
-            self.get("player", request, CONTEXT_EMBEDDED)
-                .await
-                .and_then(
-                    |x: player_response::Result<player_response::StreamPlayerResponse>| {
-                        x.into_std()
-                    },
-                )
+            };
         } else {
-            res
-        }
-    }
-
-    pub async fn player(
-        &self,
-        id: crate::video::Id,
-    ) -> crate::Result<player_response::Result<player_response::PlayerResponse>> {
-        #[derive(Debug, Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Request {
-            video_id: crate::video::Id,
+            next_page = false;
         }
 
-        let request = Request { video_id: id };
-
-        self.get("player", request, CONTEXT_ANDROID).await
-    }
-
-    pub async fn next<T: serde::de::DeserializeOwned>(&self, next: Next) -> crate::Result<T> {
-        match next {
-            Next::Video(video_id) => {
-                #[derive(Debug, Serialize)]
-                #[serde(rename_all = "camelCase")]
-                struct Request {
-                    video_id: crate::video::Id,
-                }
-
-                let request = Request { video_id };
-
-                self.get("next", request, CONTEXT_WEB).await
-            }
-            Next::Continuation(continuation) => {
-                #[derive(Debug, Serialize)]
-                #[serde(rename_all = "camelCase")]
-                struct Request {
-                    continuation: String,
-                }
-
-                let request = Request { continuation };
-
-                self.get("next", request, CONTEXT_WEB).await
-            }
-        }
-    }
-
-    pub async fn browse<T: serde::de::DeserializeOwned>(&self, browse: Browse) -> crate::Result<T> {
-        #[derive(Debug, Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Request {
-            browse_id: String,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            params: Option<String>,
-        }
-
-        let request = match browse {
-            Browse::Playlist(id) => Request {
-                browse_id: format!("VL{}", id),
-                params: Some(base64::encode([0xc2, 0x06, 0x02, 0x08, 0x00])),
-            },
-            Browse::Channel { id, page } => Request {
-                browse_id: format!("{}", id),
-                params: match page {
-                    ChannelPage::About => Some(base64::encode(b"\x12\x05about")),
-                },
-            },
-            Browse::Continuation(continuation) => {
-                #[derive(Debug, Serialize)]
-                #[serde(rename_all = "camelCase")]
-                struct Request {
-                    continuation: String,
-                }
-
-                let request = Request { continuation };
-
-                return self.get("browse", request, CONTEXT_WEB).await;
+        // get playlist video items
+        let urls_array = match page_json.get("items") {
+            Some(items) => items.as_array().unwrap(),
+            None => {
+                return Err(format!("Could not extract 'items' array from page json"));
             }
         };
 
-        self.get("browse", request, CONTEXT_WEB).await
-    }
-}*/
+        // for video token in array
+        for video_information in urls_array.iter() {
+            // get video information
+            let video_id = match video_information.get("snippet") {
+                Some(snippet) => {
+                    match snippet.get("resourceId") {
+                        Some(resource_id) => match resource_id.get("videoId") {
+                            Some(video_id) => video_id.to_string(),
+                            None => {
+                                return Err("Could not get 'videoId' from 'resourceId' in video information".to_string());
+                            }
+                        },
+                        None => {
+                            return Err(
+                                "Could not get 'resourceId' from 'snippet' in video information"
+                                    .to_string(),
+                            );
+                        }
+                    }
+                }
+                None => {
+                    return Err("Could not get 'snippet' from video information".to_string());
+                }
+            };
 
-// google playlist api: build hub, then call playlist__ and build with playlist id, page id, etc..., then doit()
-// y = youtube::new()
-// p = y.playlist_items()
-// p.list(part???)
-/*
-///              .video_id("nonumy")
-///              .playlist_id("rebum.")
-///              .page_token("tempor")
-///              .on_behalf_of_content_owner("dolore")
-///              .max_results(76)
-///              .add_id("amet.")
-///              .doit().await;*/
+            let title = match video_information.get("snippet").as_ref() {
+                Some(snippet) => match snippet.get("title").as_ref() {
+                    Some(title) => title.to_string(),
+                    None => {
+                        return Err(
+                            "Could not get 'title' from 'snippet' in video information".to_string()
+                        );
+                    }
+                },
+                None => {
+                    return Err("Could not get 'snippet' from video information".to_string());
+                }
+            };
+
+            let channel_title = match video_information.get("snippet") {
+                Some(snippet) => match snippet.get("videoOwnerChannelTitle") {
+                    Some(channel_title) => channel_title.to_string(),
+                    None => {
+                        return Err("Could not get 'videoOwnerChannelTitle' from 'snippet' in video information".to_string());
+                    }
+                },
+                None => {
+                    return Err("Could not get 'snippet' from video information".to_string());
+                }
+            };
+
+            let published_at = match video_information.get("snippet") {
+                Some(published) => match published.get("publishedAt") {
+                    Some(value) => value.to_string(),
+                    None => {
+                        return Err(
+                            "Could not get 'publishedAt' from 'snippet' in video information"
+                                .to_string(),
+                        );
+                    }
+                },
+                None => {
+                    return Err("Could not get 'snippet' from video information".to_string());
+                }
+            };
+
+            // create Video instance with extracted data
+            let new_video = Video {
+                video_id,
+                title,
+                channel_title,
+                published_at,
+            };
+
+            playlist_videos.push(new_video);
+        }
+    }
+
+    return Ok(playlist_videos);
+}

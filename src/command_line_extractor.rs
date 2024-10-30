@@ -2,7 +2,7 @@ use std::{ops::{Deref, DerefMut}, sync::Mutex};
 
 use clap::{Args, Parser, Subcommand};
 
-use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabase}, youtube_playlist_extractor::get_video_links};
+use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabase}};
 
 //TODO implement action for create playlist, including genre
 //TODO implement actions to delete playlist
@@ -86,12 +86,13 @@ pub fn handle_run(database_context: &mut Database) -> Result<(), String> {
     let playlists = database_context.get_all_playlists()?;
 
     // for each playlist
+    /*
     for playlist_id in playlists {
         // get all videos in playlist
         let playlist_video_ids = get_video_links(&playlist_id)?;
 
         println!("{}", playlist_video_ids.len());
-    }
+    } */
 
     todo!();
 }
