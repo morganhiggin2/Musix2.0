@@ -1,3 +1,4 @@
 /target
 /data/audio/*
 /data/database/*
+/src/resources/api_key.txt

@@ -36,7 +36,14 @@ fn main() {
 
     let playlist_videos = tokio::runtime::Runtime::new()
         .unwrap()
-        .block_on(get_playlist_videos("".to_owned()));
+        .block_on(get_playlist_videos(
+            "PL5MlDErkUccBvnU74GlkuNmCifkfLf1o8".to_owned(),
+        ))
+        .unwrap();
+
+    for playlist_video in playlist_videos {
+        println!("{}", playlist_video.title);
+    }
 
     /*let audio_extractor: InitializedAudioExtractor = EmptyAudioExtractor::init("y-bt-KUb0Nc");
     let audio_extractor: FinishedAudioExtractor = audio_extractor.download().unwrap();
