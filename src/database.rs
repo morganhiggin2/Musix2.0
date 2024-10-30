@@ -113,7 +113,9 @@ impl InitializedDatabase {
         //create / re-establish presence of necessary tables
         let create_table_queries = [
             "CREATE TABLE IF NOT EXISTS playlists (playlist_id VARCHAR(11), genre TEXT)",
-            "CREATE TABLE IF NOT EXISTS downloaded_videos (youtube_video_id VARCHAR(11), playlist_id VARCHAR(11), failed BOOLEAN)"
+            "CREATE TABLE IF NOT EXISTS downloaded_videos (youtube_video_id VARCHAR(11), playlist_id VARCHAR(11), failed BOOLEAN)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS playlists_playlists_id_index ON playlists (playlist_id)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS downloaded_videos_video_id ON downloaded_videos (youtube_video_id)"
         ];
 
         //for each create table query
@@ -213,12 +215,13 @@ impl InitializedDatabase {
     /// Put playlist information into database
     ///   If already exists, will silently ignore
     pub fn put_playlist(&self, playlist_id: String, genre: String) -> Result<(), String> {
+        // TODO error not deduplicating based on playlist id
+
         //create query
-        //let query = format!("INSERT INTO playlistss VALUES ({}, {}) ON CONFLICT({playlist_id}) DO NOTHING", playlist_id, genre);
-        let query = "INSERT INTO playlists(playlist_id, genre) VALUES (?1, ?2)";
+        let query = "INSERT OR REPLACE INTO playlists(playlist_id, genre) VALUES (?1, ?2)";
 
         //generate prepared statment
-        let mut statement = match self.connection.execute(&query, params![playlist_id, genre]) {
+        let _ = match self.connection.execute(&query, params![playlist_id, genre]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
@@ -238,7 +241,7 @@ impl InitializedDatabase {
         let query = "DELETE FROM downloaded_videos WHERE playlist_id = ?1";
 
         // execute statement
-        let statement_result = match self.connection.execute(&query, params![playlist_id]) {
+        let _ = match self.connection.execute(&query, params![playlist_id]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
@@ -252,7 +255,7 @@ impl InitializedDatabase {
         let query = "DELETE FROM playlists WHERE playlist_id = ?1";
 
         // execute statement
-        let statement_result = match self.connection.execute(&query, params![playlist_id]) {
+        let _ = match self.connection.execute(&query, params![playlist_id]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
