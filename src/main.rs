@@ -27,23 +27,13 @@ pub mod youtube_playlist_extractor;
 use audiotags::{MimeType, Tag};
 
 //TODO create directory if deleted
-fn main() {
+#[tokio::main]
+async fn main() {
     // create contexts
-    //let mut database_context = Database::default();
+    let mut database_context = Database::default();
 
     //parse command line arguments
-    //let try_failed = command_line_extractor::parse_args(&mut database_context).unwrap();
-
-    let playlist_videos = tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(get_playlist_videos(
-            "PL5MlDErkUccBvnU74GlkuNmCifkfLf1o8".to_owned(),
-        ))
-        .unwrap();
-
-    for playlist_video in playlist_videos {
-        println!("{}", playlist_video.title);
-    }
+    let try_failed = command_line_extractor::parse_args(&mut database_context).unwrap();
 
     /*let audio_extractor: InitializedAudioExtractor = EmptyAudioExtractor::init("y-bt-KUb0Nc");
     let audio_extractor: FinishedAudioExtractor = audio_extractor.download().unwrap();

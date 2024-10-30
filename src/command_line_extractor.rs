@@ -1,8 +1,11 @@
-use std::{ops::{Deref, DerefMut}, sync::Mutex};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Mutex,
+};
 
 use clap::{Args, Parser, Subcommand};
 
-use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabase}};
+use crate::database::{self, Database, InitializedDatabase, UninitializedDatabase};
 
 //TODO implement action for create playlist, including genre
 //TODO implement actions to delete playlist
@@ -12,7 +15,7 @@ use crate::{database::{self, Database, InitializedDatabase, UninitializedDatabas
 #[derive(Debug, Parser)]
 pub struct App {
     #[clap(subcommand)]
-    command: Command
+    command: Command,
 }
 
 //TODO add help for each one
@@ -22,57 +25,58 @@ pub enum Command {
     CreatePlaylist(CreatePlaylistArguments),
     DeletePlaylist(DeletePlaylistArguments),
     ListPlaylists,
-    Run
+    Run,
 }
 
 #[derive(Debug, Args)]
 pub struct CreatePlaylistArguments {
     playlist_id: String,
-    genre: String
+    genre: String,
 }
 
 #[derive(Debug, Args)]
 pub struct DeletePlaylistArguments {
-    playlist_id: String
+    playlist_id: String,
 }
 
 pub fn parse_args(database_context: &mut Database) -> Result<(), String> {
     let args = App::parse();
 
     match args.command {
-        Command::CreatePlaylist(args) => {
-            handle_create_playlist(args, database_context)?
-        }
-        Command::DeletePlaylist(args) => {
-            handle_delete_playlist(args, database_context)?    
-        }
-        Command::ListPlaylists => {
-            handle_list_playlists(database_context)? 
-        }
-        Command::Run => {
-            handle_run(database_context)?
-        }
-    }    
+        Command::CreatePlaylist(args) => handle_create_playlist(args, database_context)?,
+        Command::DeletePlaylist(args) => handle_delete_playlist(args, database_context)?,
+        Command::ListPlaylists => handle_list_playlists(database_context)?,
+        Command::Run => handle_run(database_context)?,
+    }
 
     return Ok(());
 }
 
 /// Create playlist with name and id
-pub fn handle_create_playlist(args: CreatePlaylistArguments, database_context: &mut Database) -> Result<(), String> {
+pub fn handle_create_playlist(
+    args: CreatePlaylistArguments,
+    database_context: &mut Database,
+) -> Result<(), String> {
     return database_context.put_playlist(args.playlist_id, args.genre);
 }
 
-/// Delete playlist by name 
-pub fn handle_delete_playlist(args: DeletePlaylistArguments, database_context: &mut Database) -> Result<(), String> {
+/// Delete playlist by name
+pub fn handle_delete_playlist(
+    args: DeletePlaylistArguments,
+    database_context: &mut Database,
+) -> Result<(), String> {
     return database_context.delete_playlist(args.playlist_id);
 }
 
 /// List all playlists
 pub fn handle_list_playlists(database_context: &mut Database) -> Result<(), String> {
     let playlists = database_context.get_all_playlists()?;
-    
+
     // Print the playlists to the console
     // Currently just the id
+
+    println!("Playlists: ");
+
     for playlist in playlists {
         println!("Playlist with id {}", playlist)
     }

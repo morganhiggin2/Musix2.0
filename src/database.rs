@@ -97,6 +97,16 @@ impl Database {
 impl InitializedDatabase {
     /// Create an InitializedDatabase from a UnintializedDatabase
     pub fn new(_: &mut UninitializedDatabase) -> Result<InitializedDatabase, String> {
+        match std::fs::create_dir_all("data/database") {
+            Ok(()) => (),
+            Err(e) => {
+                return Err(format!(
+                    "Could not create files for database 'data/database': {}",
+                    e
+                ));
+            }
+        };
+
         //initialize the connection
         let connection = rusqlite::Connection::open("data/database/sqlite.db").unwrap();
 
