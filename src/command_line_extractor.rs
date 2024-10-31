@@ -1,11 +1,21 @@
 use std::{
+    collections::HashSet,
     ops::{Deref, DerefMut},
     sync::Mutex,
 };
 
 use clap::{Args, Parser, Subcommand};
+use rustube::Video;
 
-use crate::database::{self, Database, InitializedDatabase, UninitializedDatabase};
+use crate::{
+    audio_extractor::{EmptyAudioExtractor, FinishedAudioExtractor, InitializedAudioExtractor},
+    audio_tag_appender::{
+        EmptyAudioTagAppender, FinalizedAudioTagAppender, InitializedAudioTagAppender,
+    },
+    database::{self, Database, InitializedDatabase, UninitializedDatabase},
+    title_extractor::{EmptyTitleExtractor, FinishedTitleExtractor, InitializedTitleExtractor},
+    youtube_playlist_extractor::get_playlist_videos,
+};
 
 //TODO implement action for create playlist, including genre
 //TODO implement actions to delete playlist
@@ -85,11 +95,66 @@ pub fn handle_list_playlists(database_context: &mut Database) -> Result<(), Stri
 }
 
 // Handle run, which will attempt to download all the undownloaded videos from all the playlists in the database
-pub fn handle_run(database_context: &mut Database) -> Result<(), String> {
+pub async fn handle_run(database_context: &mut Database) -> Result<(), String> {
     // get list of playlists
-    let playlists = database_context.get_all_playlists()?;
+    let playlist_ids = database_context.get_all_playlists()?;
 
-    // for each playlist
+    let mut all_video_ids = HashSet::<String>::new();
+
+    for playlist_id in playlist_ids.to_owned() {
+        // get videos
+        let playlist_video_ids = get_playlist_videos(playlist_id).await?;
+
+        // add to all videos
+        playlist_video_ids.iter().for_each(|video_id| {
+            all_video_ids.insert(video_id.video_id.to_owned());
+        });
+    }
+
+    let mut downloaded_video_ids = HashSet::<String>::new();
+
+    for playlist_id in playlist_ids.to_owned() {
+        // get downloaded video ids
+        let downloaded_playlist_video_ids = database_context.get_downloaded_videos(playlist_id)?;
+
+        downloaded_playlist_video_ids.iter().for_each(|video_id| {
+            downloaded_video_ids.insert(video_id.to_owned());
+        });
+    }
+
+    // find vector of new videos
+    let to_download_video_ids = all_video_ids.difference(&downloaded_video_ids);
+
+    // download videos
+    for to_download_video_id in to_download_video_ids {
+        // create audio extractor
+        let audio_extractor: InitializedAudioExtractor =
+            EmptyAudioExtractor::init(to_download_video_id);
+        let audio_extractor: FinishedAudioExtractor = audio_extractor.download()?;
+
+        // get title from downloaded audio
+        let title_extractor: InitializedTitleExtractor =
+            EmptyTitleExtractor::init(audio_extractor.title().clone());
+        let title_extractor: FinishedTitleExtractor = title_extractor.extract_from_title()?;
+
+        println!(
+            "song is at {} with title {}, name {}, and artist {} by video author {}",
+            audio_extractor.write_path().as_os_str().to_str().unwrap(),
+            audio_extractor.title(),
+            title_extractor.name(),
+            title_extractor.artist(),
+            audio_extractor.author()
+        );
+
+        // append the tags to the video
+        let tag_appender: InitializedAudioTagAppender =
+            EmptyAudioTagAppender::init(&audio_extractor);
+        let tag_appender: FinalizedAudioTagAppender = tag_appender.append_metadata()?;
+        // get list of new videos
+    }
+
+    // for each new video
+    //  download
     /*
     for playlist_id in playlists {
         // get all videos in playlist
