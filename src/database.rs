@@ -43,6 +43,8 @@ impl Database {
     }
 
     fn get_initialized_state_always(&mut self) -> Result<&mut InitializedDatabase, String> {
+        //TODO can we do this inside the match to valid the panic call? using ref maybe to inspect and condition
+        
         self.initialize_if_required()?;
 
         // We know for a fact that by this point the state will be an initiailized database
