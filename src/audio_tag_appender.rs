@@ -9,9 +9,7 @@ pub struct InitializedAudioTagAppender<'a> {
     audio_extractor: &'a FinishedAudioExtractor,
 }
 
-pub struct FinalizedAudioTagAppender<'a> {
-    audio_extractor: &'a FinishedAudioExtractor,
-}
+pub struct FinalizedAudioTagAppender {}
 
 impl EmptyAudioTagAppender {
     pub fn init(finished_audio_extractor: &FinishedAudioExtractor) -> InitializedAudioTagAppender {
@@ -25,7 +23,7 @@ impl<'a> InitializedAudioTagAppender<'a> {
     pub fn append_metadata(
         self: InitializedAudioTagAppender<'a>,
         genre: &String,
-    ) -> Result<FinalizedAudioTagAppender<'a>, String> {
+    ) -> Result<FinalizedAudioTagAppender, String> {
         let mut audio_file = match OpenOptions::new()
             .read(true)
             .write(true)
@@ -36,14 +34,6 @@ impl<'a> InitializedAudioTagAppender<'a> {
                 return Err(format!("Could not get file: {}", e));
             }
         };
-
-        //TODO delete
-        /*let write_path_str = match self.audio_extractor.write_path().to_str() {
-            Some(str_path) => str_path,
-            None => {
-                return Err("Cannot stringify write path for audio file".to_string());
-            }
-        };*/
 
         //read metatdata from existing file
         let mut current_tags =
@@ -69,8 +59,6 @@ impl<'a> InitializedAudioTagAppender<'a> {
             }
         }
 
-        return Ok(FinalizedAudioTagAppender {
-            audio_extractor: self.audio_extractor,
-        });
+        return Ok(FinalizedAudioTagAppender {});
     }
 }

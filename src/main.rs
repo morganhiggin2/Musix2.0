@@ -4,7 +4,6 @@ pub mod audio_extractor;
 pub mod audio_tag_appender;
 pub mod command_line_extractor;
 pub mod database;
-pub mod process;
 pub mod settings_parser;
 pub mod title_extractor;
 pub mod youtube_playlist_extractor;

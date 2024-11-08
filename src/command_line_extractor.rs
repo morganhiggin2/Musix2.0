@@ -12,11 +12,6 @@ use crate::{
     youtube_playlist_extractor::get_playlist_videos,
 };
 
-//TODO implement action for create playlist, including genre
-//TODO implement actions to delete playlist
-//TODO action to list playlists
-//TODO action to run process
-
 #[derive(Debug, Parser)]
 pub struct App {
     #[clap(subcommand)]

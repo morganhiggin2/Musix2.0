@@ -1,4 +1,4 @@
-use rusqlite::{self, params, Row};
+use rusqlite::{self, params};
 
 pub struct Database {
     state: DatabaseState,
@@ -47,15 +47,9 @@ impl Database {
 
         self.initialize_if_required()?;
 
-        // We know for a fact that by this point the state will be an initiailized database
-        match &mut self.state {
-            DatabaseState::UninitializedDatabase(state) => {
-                // And thus this path should never be traversed
-                panic!();
-            }
-            DatabaseState::InitializedDatabase(state) => {
-                return Ok(state);
-            }
+        return match self.state {
+            DatabaseState::InitializedDatabase(ref mut inner_state) => Ok(inner_state),
+            _ => Err(String::from("Expected initialized database state")),
         };
     }
 

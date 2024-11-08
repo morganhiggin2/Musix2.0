@@ -25,7 +25,7 @@ pub struct FinishedAudioExtractor {
 
 /// Contains the file with the metadata set after title extractor
 pub struct AudioExtractorPlayableMedia {
-    write_path: PathBuf,
+    _write_path: PathBuf,
 }
 
 impl EmptyAudioExtractor {

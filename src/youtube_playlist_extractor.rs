@@ -1,7 +1,4 @@
-// Rust code using external crates
-
 use reqwest;
-use serde_json::{json, Value};
 
 const GOOGLE_API_KEY: &str = include_str!("resources/api_key.txt");
 

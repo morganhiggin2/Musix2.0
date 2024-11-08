@@ -55,44 +55,74 @@ impl InitializedTitleExtractor {
             .to_string();
 
         let song_info: (String, String) = match title_seperator_regex.captures(&self.title) {
-            Some(matches) => {
-                match matches.iter().next() {
-                    Some(match) => {
-                        // can safely unwrap since first match is guaranteed to be non-null
-                                            let split_match = matches.get(matches.len() - 1).unwrap();
+            Some(capture_group) => {
+                // get last match in capture group
+                // can safely unwrap since first match is guaranteed to be non-null
+                let split_match = capture_group.get(capture_group.len() - 1).unwrap();
 
-                                            let song_name = title.chars().take(split_match.start()).collect::<String>();
-                                            let song_artist = title
-                                                .chars()
-                                                .skip(split_match.end() + 1)
-                                                .take(&self.title.len() - split_match.end() - 1)
-                                                .collect::<String>();
+                let song_artist = title.chars().take(split_match.start()).collect::<String>();
+                let song_name = title
+                    .chars()
+                    .skip(split_match.end() + 1)
+                    .take(&self.title.len() - split_match.end() - 1)
+                    .collect::<String>();
 
-                                            (song_name, song_artist)
-
-                    }
-                    None => {
-
-                        return Err(format!(
-                            "no matches found for title {}, ...TODO",
-                            self.title
-                        ));
-                    }
-                }
+                (song_name, song_artist)
             }
-            None => {
-                return Err(format!(
-                    "no matches found for title {}, ...TODO",
-                    self.title
-                ));
-            }
+            None => (self.title.to_owned(), "".to_string()),
         };
 
+        let song_name = song_info.0.trim();
+        let song_artist = song_info.1.trim();
+
         let finished_title_extractor = FinishedTitleExtractor {
-            name: song_info.0.to_owned(),
-            artist: song_info.1.to_owned(),
+            name: song_name.to_owned(),
+            artist: song_artist.to_owned(),
         };
 
         return Ok(finished_title_extractor);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EmptyTitleExtractor;
+
+    #[test]
+    fn test_title_extractor() {
+        let empty_title_extractor =
+            EmptyTitleExtractor::init("Astro - Opium Remix (Slowed)".to_string());
+        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
+
+        assert_eq!(finalized_title_extractor.artist(), "Astro");
+        assert_eq!(finalized_title_extractor.name(), "Opium Remix (Slowed)");
+
+        let empty_title_extractor = EmptyTitleExtractor::init("HIMG".to_string());
+        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
+
+        assert_eq!(finalized_title_extractor.artist(), "");
+        assert_eq!(finalized_title_extractor.name(), "HIMG");
+
+        let empty_title_extractor = EmptyTitleExtractor::init(
+            "MOONDEITY x INTERWORLD - ONE CHANCE | SLOWED + REVERBED".to_string(),
+        );
+        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
+
+        assert_eq!(finalized_title_extractor.artist(), "MOONDEITY x INTERWORLD");
+        assert_eq!(
+            finalized_title_extractor.name(),
+            "ONE CHANCE | SLOWED + REVERBED"
+        );
+
+        let empty_title_extractor = EmptyTitleExtractor::init(
+            "seekae - test & recognize [ flume re - work ] slowed".to_string(),
+        );
+        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
+
+        assert_eq!(finalized_title_extractor.artist(), "seekae");
+        assert_eq!(
+            finalized_title_extractor.name(),
+            "test & recognize [ flume re - work ] slowed"
+        );
     }
 }
