@@ -117,12 +117,13 @@ pub async fn handle_run(database_context: &mut Database) -> Result<(), String> {
             // create audio extractor
             let audio_extractor: InitializedAudioExtractor =
                 EmptyAudioExtractor::init(to_download_video_id);
-            let audio_extractor: FinishedAudioExtractor = audio_extractor.download()?;
+            let audio_extractor: FinishedAudioExtractor = audio_extractor.download().await?;
 
             // get title from downloaded audio
             let title_extractor: InitializedTitleExtractor =
                 EmptyTitleExtractor::init(audio_extractor.title().clone());
-            let title_extractor: FinishedTitleExtractor = title_extractor.extract_from_title()?;
+            let title_extractor: FinishedTitleExtractor =
+                title_extractor.extract_from_title(audio_extractor.author())?;
 
             // TODO remove
             println!(

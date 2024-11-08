@@ -61,21 +61,6 @@ pub async fn get_playlist_videos(playlist_id: String) -> Result<Vec<Video>, Stri
             None => (),
         };
 
-        // get next page token
-        page_token = match page_json.get("nextPageToken") {
-            Some(next_page_token) => match next_page_token.as_str() {
-                Some(token) => token,
-                None => {
-                    return Err(format!(
-                        "Could not get next page token from found next page token in json"
-                    ));
-                }
-            },
-            None => {
-                break;
-            }
-        };
-
         // get playlist video items
         let urls_array = match page_json.get("items") {
             Some(items) => items.as_array().unwrap(),
@@ -109,7 +94,7 @@ pub async fn get_playlist_videos(playlist_id: String) -> Result<Vec<Video>, Stri
             // get video information
             let video_id = match video_snippet.get("resourceId") {
                 Some(resource_id) => match resource_id.get("videoId") {
-                    Some(video_id) => video_id.to_string(),
+                    Some(video_id) => video_id.as_str().unwrap_or(""),
                     None => {
                         return Err(
                             "Could not get 'videoId' from 'resourceId' in video information"
@@ -126,7 +111,7 @@ pub async fn get_playlist_videos(playlist_id: String) -> Result<Vec<Video>, Stri
             };
 
             let title = match video_snippet.get("title").as_ref() {
-                Some(title) => title.to_string(),
+                Some(title) => title.as_str().unwrap_or(""),
                 None => {
                     return Err(
                         "Could not get 'title' from 'snippet' in video information".to_string()
@@ -135,14 +120,14 @@ pub async fn get_playlist_videos(playlist_id: String) -> Result<Vec<Video>, Stri
             };
 
             let channel_title = match video_snippet.get("videoOwnerChannelTitle") {
-                Some(channel_title) => channel_title.to_string(),
+                Some(channel_title) => channel_title.as_str().unwrap_or(""),
                 None => {
                     return Err("Could not get 'videoOwnerChannelTitle' from 'snippet' in video information".to_string());
                 }
             };
 
             let published_at = match video_snippet.get("publishedAt") {
-                Some(value) => value.to_string(),
+                Some(value) => value.as_str().unwrap_or(""),
                 None => {
                     return Err(
                         "Could not get 'publishedAt' from 'snippet' in video information"
@@ -153,14 +138,29 @@ pub async fn get_playlist_videos(playlist_id: String) -> Result<Vec<Video>, Stri
 
             // create Video instance with extracted data
             let new_video = Video {
-                video_id,
-                title,
-                channel_title,
-                published_at,
+                video_id: video_id.to_string(),
+                title: title.to_string(),
+                channel_title: channel_title.to_string(),
+                published_at: published_at.to_string(),
             };
 
             playlist_videos.push(new_video);
         }
+
+        // get next page token
+        page_token = match page_json.get("nextPageToken") {
+            Some(next_page_token) => match next_page_token.as_str() {
+                Some(token) => token,
+                None => {
+                    return Err(format!(
+                        "Could not get next page token from found next page token in json"
+                    ));
+                }
+            },
+            None => {
+                break;
+            }
+        };
     }
 
     return Ok(playlist_videos);

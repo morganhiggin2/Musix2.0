@@ -39,7 +39,7 @@ impl EmptyAudioExtractor {
 
 //TODO add audio extension type to finished audio extactor, maybe Minetype enum
 impl InitializedAudioExtractor {
-    pub fn download(&self) -> Result<FinishedAudioExtractor, String> {
+    pub async fn download(&self) -> Result<FinishedAudioExtractor, String> {
         // set directory that the file will be written to
         let current_working_directory: PathBuf = match std::env::current_dir() {
             Ok(val) => val,
@@ -51,6 +51,14 @@ impl InitializedAudioExtractor {
             .join(DATA_DIRECTORY_NAME)
             .join(TEMP_AUDIO_DIRECTORY_NAME);
 
+        //create directories along 'path' if they already do not exist
+        match std::fs::create_dir_all(&path) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(format!("Failed to create directories: {:?}", e));
+            }
+        }
+
         // get rusttube id object from raw video id
         let id = match rustube::Id::from_str(&self.id) {
             Ok(some) => some,
@@ -60,7 +68,7 @@ impl InitializedAudioExtractor {
         };
 
         //get video object
-        let video_obj = match rustube::blocking::Video::from_id(id.into_owned()) {
+        let video_obj = match rustube::Video::from_id(id.into_owned()).await {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
@@ -123,7 +131,7 @@ impl InitializedAudioExtractor {
         let path_to_video = match audio_stream {
             Some(stream) => {
                 //audio stream found, download audio
-                match stream.blocking_download_to(path.clone()) {
+                match stream.download_to(path.clone()).await {
                     Ok(_) => path,
                     Err(e) => {
                         //TODO remove unwrap here
@@ -162,3 +170,6 @@ impl InitializedAudioExtractor {
         return Ok(finished_audio_obj);
     }
 }
+
+// https://github.com/Mithronn/rusty_ytdl/tree/main
+// https://crates.io/crates/A2VConverter

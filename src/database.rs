@@ -43,8 +43,6 @@ impl Database {
     }
 
     fn get_initialized_state_always(&mut self) -> Result<&mut InitializedDatabase, String> {
-        //TODO can we do this inside the match to valid the panic call? using ref maybe to inspect and condition
-
         self.initialize_if_required()?;
 
         return match self.state {
@@ -215,8 +213,6 @@ impl InitializedDatabase {
     /// Put playlist information into database
     ///   If already exists, will silently ignore
     pub fn put_playlist(&self, playlist_id: String, genre: String) -> Result<(), String> {
-        // TODO error not deduplicating based on playlist id
-
         //create query
         let query = "INSERT OR REPLACE INTO playlists(playlist_id, genre) VALUES (?1, ?2)";
 
@@ -290,7 +286,7 @@ impl InitializedDatabase {
         //execute query, map resulting rows
         let playlists_results = match statement.query_map([], |row| {
             let playlist_id: String = row.get(0)?;
-            let genre: String = row.get(0)?;
+            let genre: String = row.get(1)?;
 
             Ok((playlist_id, genre))
         }) {

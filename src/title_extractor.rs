@@ -29,9 +29,7 @@ impl EmptyTitleExtractor {
 
 impl InitializedTitleExtractor {
     // Extract music title and artist from video title
-    pub fn extract_from_title(&self) -> Result<FinishedTitleExtractor, String> {
-        //TODO get rid of unwraps
-
+    pub fn extract_from_title(&self, author: &str) -> Result<FinishedTitleExtractor, String> {
         //replace all | & @ \\ \" / (n spaces to 1 sapace)
         //-> any sequence of special charaters is a seperator, getting rid of all sequence of spaces with one space
         let space_regex = match Regex::new(SPACE_REGEX) {
@@ -69,7 +67,8 @@ impl InitializedTitleExtractor {
 
                 (song_name, song_artist)
             }
-            None => (self.title.to_owned(), "".to_string()),
+            // If no artist in video title, make the video author the artist
+            None => (self.title.to_owned(), author.to_owned()),
         };
 
         let song_name = song_info.0.trim();
@@ -92,21 +91,21 @@ mod tests {
     fn test_title_extractor() {
         let empty_title_extractor =
             EmptyTitleExtractor::init("Astro - Opium Remix (Slowed)".to_string());
-        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
+        let finalized_title_extractor = empty_title_extractor.extract_from_title("Mayhem").unwrap();
 
         assert_eq!(finalized_title_extractor.artist(), "Astro");
         assert_eq!(finalized_title_extractor.name(), "Opium Remix (Slowed)");
 
         let empty_title_extractor = EmptyTitleExtractor::init("HIMG".to_string());
-        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
+        let finalized_title_extractor = empty_title_extractor.extract_from_title("Mayhem").unwrap();
 
-        assert_eq!(finalized_title_extractor.artist(), "");
+        assert_eq!(finalized_title_extractor.artist(), "Mayhem");
         assert_eq!(finalized_title_extractor.name(), "HIMG");
 
         let empty_title_extractor = EmptyTitleExtractor::init(
             "MOONDEITY x INTERWORLD - ONE CHANCE | SLOWED + REVERBED".to_string(),
         );
-        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
+        let finalized_title_extractor = empty_title_extractor.extract_from_title("Mayhem").unwrap();
 
         assert_eq!(finalized_title_extractor.artist(), "MOONDEITY x INTERWORLD");
         assert_eq!(
@@ -117,7 +116,7 @@ mod tests {
         let empty_title_extractor = EmptyTitleExtractor::init(
             "seekae - test & recognize [ flume re - work ] slowed".to_string(),
         );
-        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
+        let finalized_title_extractor = empty_title_extractor.extract_from_title("Mayhem").unwrap();
 
         assert_eq!(finalized_title_extractor.artist(), "seekae");
         assert_eq!(
