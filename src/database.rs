@@ -44,7 +44,7 @@ impl Database {
 
     fn get_initialized_state_always(&mut self) -> Result<&mut InitializedDatabase, String> {
         //TODO can we do this inside the match to valid the panic call? using ref maybe to inspect and condition
-        
+
         self.initialize_if_required()?;
 
         // We know for a fact that by this point the state will be an initiailized database
@@ -60,10 +60,13 @@ impl Database {
     }
 
     // Wrapper for initiazlied database calls
-    pub fn get_downloaded_videos(&mut self, playlist_id: String) -> Result<Vec<String>, String> {
+    pub fn get_downloaded_videos_from_playlist(
+        &mut self,
+        playlist_id: String,
+    ) -> Result<Vec<String>, String> {
         let initialzied_database = self.get_initialized_state_always()?;
 
-        return initialzied_database.get_downloaded_videos(playlist_id);
+        return initialzied_database.get_downloaded_videos_from_playlist(playlist_id);
     }
 
     pub fn put_downloaded_video(
@@ -89,7 +92,7 @@ impl Database {
         return initialzied_database.delete_playlist(playlist_id);
     }
 
-    pub fn get_all_playlists(&mut self) -> Result<Vec<String>, String> {
+    pub fn get_all_playlists(&mut self) -> Result<Vec<(String, String)>, String> {
         let initialzied_database = self.get_initialized_state_always()?;
 
         return initialzied_database.get_all_playlists();
@@ -136,12 +139,13 @@ impl InitializedDatabase {
             }
         }
 
-        return Ok(InitializedDatabase {
-            connection: connection,
-        });
+        return Ok(InitializedDatabase { connection });
     }
 
-    pub fn get_downloaded_videos(&self, playlist_id: String) -> Result<Vec<String>, String> {
+    pub fn get_downloaded_videos_from_playlist(
+        &self,
+        playlist_id: String,
+    ) -> Result<Vec<String>, String> {
         //create query
         let query = "SELECT * FROM downloaded_videos WHERE playlist_id like ?1";
 
@@ -160,7 +164,7 @@ impl InitializedDatabase {
         };
 
         //execute query, map resulting rows
-        let videos = match statement.query_map([], |row| {
+        let videos = match statement.query_map(params![playlist_id], |row| {
             let row_str: String = row.get(0)?;
             Ok(row_str)
         }) {
@@ -236,8 +240,8 @@ impl InitializedDatabase {
         return Ok(());
     }
 
-    /// Delete playlist from database
-    ///     If the playlist does not exist, will do nothing
+    /// Delete playlist from database.
+    /// If the playlist does not exist, will do nothing
     pub fn delete_playlist(&self, playlist_id: String) -> Result<(), String> {
         //delete all downloads videos from the downloaded videos table with the playlist id
         let query = "DELETE FROM downloaded_videos WHERE playlist_id = ?1";
@@ -270,12 +274,13 @@ impl InitializedDatabase {
         return Ok(());
     }
 
-    pub fn get_all_playlists(&self) -> Result<Vec<String>, String> {
+    // Returns a list of tuples containing (playlist id, genre) for each playlist
+    pub fn get_all_playlists(&self) -> Result<Vec<(String, String)>, String> {
         //create query
         let query = "SELECT * FROM playlists";
 
         //list of playlist ids
-        let mut playlists: Vec<String> = Vec::new();
+        let mut playlists: Vec<(String, String)> = Vec::new();
 
         //prepare statment
         let mut statement = match self.connection.prepare(query) {
@@ -290,8 +295,10 @@ impl InitializedDatabase {
 
         //execute query, map resulting rows
         let playlists_results = match statement.query_map([], |row| {
-            let row_str: String = row.get(0)?;
-            Ok(row_str)
+            let playlist_id: String = row.get(0)?;
+            let genre: String = row.get(0)?;
+
+            Ok((playlist_id, genre))
         }) {
             Ok(some) => some,
             Err(e) => {
