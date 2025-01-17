@@ -1,0 +1,7 @@
+1. have every function be input to output:
+    avoid having a function mutatate an input variable. Rather, have a function
+    output a different variable that what was inputed. This creates a chain of followable function calls
+    based on the variables passed in and returned out. This is easier to read and build upon.
+
+2. Horizontal layout
+    avoid nested structures. This allows the program to scale easily, borrow data easier, and be more readable. Avoid nesting and vertical growth at all costs!
