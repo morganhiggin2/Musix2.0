@@ -8,6 +8,7 @@ use crate::{
         EmptyAudioTagAppender, FinalizedAudioTagAppender, InitializedAudioTagAppender,
     },
     database::Database,
+    environment_extractor::EnvironmentVariables,
     title_extractor::{EmptyTitleExtractor, FinishedTitleExtractor, InitializedTitleExtractor},
     youtube_playlist_extractor::get_playlist_videos,
 };
@@ -39,7 +40,10 @@ pub struct DeletePlaylistArguments {
     playlist_id: String,
 }
 
-pub async fn parse_args(database_context: &mut Database) -> Result<(), String> {
+pub async fn parse_args(
+    database_context: &mut Database,
+    environment_variables: &EnvironmentVariables,
+) -> Result<(), String> {
     let args = App::parse();
 
     match args.command {

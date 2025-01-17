@@ -104,6 +104,16 @@ impl InitializedDatabase {
             }
         };
 
+        // Download the database if it does not exist
+        match std::fs::exists(std::path::Path::new("data/database/sqlite.db")) {
+            Ok(file_exists) => {
+                if !file_exists {
+                    // Download the database from s3
+                }
+            }
+            Err(e) => ,
+        }
+
         //initialize the connection
         let connection = rusqlite::Connection::open("data/database/sqlite.db").unwrap();
 

@@ -1,5 +1,6 @@
 use getset::Getters;
-use std::path::PathBuf;
+use rusty_ytdl::{FFmpegArgs, Video, VideoOptions, VideoQuality, VideoSearchOptions};
+use std::{io::Write, path::PathBuf};
 use uuid::Uuid;
 
 const DATA_DIRECTORY_NAME: &str = "data";
@@ -39,7 +40,7 @@ impl EmptyAudioExtractor {
 
 //TODO add audio extension type to finished audio extactor, maybe Minetype enum
 impl InitializedAudioExtractor {
-    pub async fn download(&self) -> Result<FinishedAudioExtractor, String> {
+    /*pub async fn download(&self) -> Result<FinishedAudioExtractor, String> {
         // set directory that the file will be written to
         let current_working_directory: PathBuf = match std::env::current_dir() {
             Ok(val) => val,
@@ -168,6 +169,67 @@ impl InitializedAudioExtractor {
         };
 
         return Ok(finished_audio_obj);
+    }
+    */
+
+    pub async fn download(&self) -> Result<FinishedAudioExtractor, String> {
+        // set directory that the file will be written to
+        let current_working_directory: PathBuf = match std::env::current_dir() {
+            Ok(val) => val,
+            Err(e) => {
+                return Err(e.to_string());
+            }
+        };
+        let path = current_working_directory
+            .join(DATA_DIRECTORY_NAME)
+            .join(TEMP_AUDIO_DIRECTORY_NAME)
+            .join("temp.mp3");
+
+        //create directories along 'path' if they already do not exist
+        match std::fs::create_dir_all(&path.parent().unwrap().to_path_buf()) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(format!("Failed to create directories: {:?}", e));
+            }
+        }
+
+        let video_options = VideoOptions {
+            quality: VideoQuality::HighestAudio,
+            filter: VideoSearchOptions::Audio,
+            ..Default::default()
+        };
+
+        let video = Video::new_with_options(self.id.to_owned(), video_options).unwrap();
+
+        /*let stream = video
+        .stream_with_ffmpeg(Some(FFmpegArgs {
+            format: Some("mp3".to_string()),
+            audio_filter: None,
+            video_filter: None,
+        }))
+        .await
+        .unwrap();*/
+
+        let stream = video.stream().await.unwrap();
+
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+
+        while let Some(chunk) = stream.chunk().await.unwrap() {
+            file.write_all(&chunk).unwrap();
+        }
+
+        let finished_audio_extractor = FinishedAudioExtractor {
+            write_path: path,
+            title: "".to_string(),
+            author: "".to_string(),
+        };
+
+        return Ok(finished_audio_extractor);
     }
 }
 
