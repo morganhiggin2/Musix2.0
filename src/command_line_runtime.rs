@@ -47,34 +47,51 @@ pub async fn parse_args(
     let args = App::parse();
 
     match args.command {
-        Command::CreatePlaylist(args) => handle_create_playlist(args, database_context)?,
-        Command::DeletePlaylist(args) => handle_delete_playlist(args, database_context)?,
-        Command::ListPlaylists => handle_list_playlists(database_context)?,
-        Command::Run => handle_run(database_context).await?,
+        Command::CreatePlaylist(args) => {
+            handle_create_playlist(args, database_context, environment_variables).await?
+        }
+        Command::DeletePlaylist(args) => {
+            handle_delete_playlist(args, database_context, environment_variables).await?
+        }
+        Command::ListPlaylists => {
+            handle_list_playlists(database_context, environment_variables).await?
+        }
+        Command::Run => handle_run(database_context, environment_variables).await?,
     }
 
     return Ok(());
 }
 
 /// Create playlist with name and id
-pub fn handle_create_playlist(
+pub async fn handle_create_playlist(
     args: CreatePlaylistArguments,
     database_context: &mut Database,
+    environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
-    return database_context.put_playlist(args.playlist_id, args.genre);
+    return database_context
+        .put_playlist(args.playlist_id, args.genre, environment_variables)
+        .await;
 }
 
 /// Delete playlist by name
-pub fn handle_delete_playlist(
+pub async fn handle_delete_playlist(
     args: DeletePlaylistArguments,
     database_context: &mut Database,
+    environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
-    return database_context.delete_playlist(args.playlist_id);
+    return database_context
+        .delete_playlist(args.playlist_id, environment_variables)
+        .await;
 }
 
 /// List all playlists
-pub fn handle_list_playlists(database_context: &mut Database) -> Result<(), String> {
-    let playlists = database_context.get_all_playlists()?;
+pub async fn handle_list_playlists(
+    database_context: &mut Database,
+    environment_variables: &EnvironmentVariables,
+) -> Result<(), String> {
+    let playlists = database_context
+        .get_all_playlists(environment_variables)
+        .await?;
 
     // Print the playlists to the console
     println!("Playlists: ");
@@ -87,17 +104,23 @@ pub fn handle_list_playlists(database_context: &mut Database) -> Result<(), Stri
 }
 
 // Handle run, which will attempt to download all the undownloaded videos from all the playlists in the database
-pub async fn handle_run(database_context: &mut Database) -> Result<(), String> {
+pub async fn handle_run(
+    database_context: &mut Database,
+    environment_variables: &EnvironmentVariables,
+) -> Result<(), String> {
     // get list of playlists
-    let playlists = database_context.get_all_playlists()?;
+    let playlists = database_context
+        .get_all_playlists(environment_variables)
+        .await?;
 
     // list of downloaded video ids
     let mut downloaded_video_ids = HashSet::<String>::new();
 
     for (playlist_id, _playlist_genre) in playlists.to_owned() {
         // get downloaded video ids
-        let downloaded_playlist_video_ids =
-            database_context.get_downloaded_videos_from_playlist(playlist_id)?;
+        let downloaded_playlist_video_ids = database_context
+            .get_downloaded_videos_from_playlist(playlist_id, environment_variables)
+            .await?;
 
         downloaded_playlist_video_ids.iter().for_each(|video_id| {
             downloaded_video_ids.insert(video_id.to_owned());
@@ -146,11 +169,14 @@ pub async fn handle_run(database_context: &mut Database) -> Result<(), String> {
             let _tag_appender: FinalizedAudioTagAppender = tag_appender.append_metadata(&genre)?;
 
             // put download video information into databse
-            database_context.put_downloaded_video(
-                to_download_video_id.to_owned(),
-                playlist_id.to_owned(),
-                false,
-            )?;
+            database_context
+                .put_downloaded_video(
+                    to_download_video_id.to_owned(),
+                    playlist_id.to_owned(),
+                    false,
+                    environment_variables,
+                )
+                .await?;
         }
     }
 

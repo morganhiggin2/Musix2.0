@@ -32,3 +32,6 @@ async fn main() {
 }
 
 // TODO have the database file live on s3 for maintainability, as the docker image won't have to reset
+//TODO implement funcationality to create the database file in s3 if it does not already exist yet
+// - however, this exposes the risk of now it can create an object in s3, have to be specific about which object it can create
+// - already have to have the bucket exist

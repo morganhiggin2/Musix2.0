@@ -1,3 +1,4 @@
+use crate::{environment_extractor::EnvironmentVariables, s3_service};
 use rusqlite::{self, params};
 
 pub struct Database {
@@ -26,10 +27,13 @@ impl Default for Database {
 
 impl Database {
     /// Initialize the database if the database has not been initialized
-    fn initialize_if_required(&mut self) -> Result<(), String> {
+    async fn initialize_if_required(
+        &mut self,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<(), String> {
         match &mut self.state {
             DatabaseState::UninitializedDatabase(state) => {
-                let new_state = match InitializedDatabase::new(state) {
+                let new_state = match InitializedDatabase::new(state, environment_variables).await {
                     Ok(some) => DatabaseState::InitializedDatabase(some),
                     Err(e) => return Err(e),
                 };
@@ -42,8 +46,11 @@ impl Database {
         };
     }
 
-    fn get_initialized_state_always(&mut self) -> Result<&mut InitializedDatabase, String> {
-        self.initialize_if_required()?;
+    async fn get_initialized_state_always(
+        &mut self,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<&mut InitializedDatabase, String> {
+        self.initialize_if_required(environment_variables).await?;
 
         return match self.state {
             DatabaseState::InitializedDatabase(ref mut inner_state) => Ok(inner_state),
@@ -52,40 +59,64 @@ impl Database {
     }
 
     // Wrapper for initiazlied database calls
-    pub fn get_downloaded_videos_from_playlist(
+    pub async fn get_downloaded_videos_from_playlist(
         &mut self,
         playlist_id: String,
+        environment_variables: &EnvironmentVariables,
     ) -> Result<Vec<String>, String> {
-        let initialzied_database = self.get_initialized_state_always()?;
+        let initialzied_database = self
+            .get_initialized_state_always(environment_variables)
+            .await?;
 
         return initialzied_database.get_downloaded_videos_from_playlist(playlist_id);
     }
 
-    pub fn put_downloaded_video(
+    pub async fn put_downloaded_video(
         &mut self,
         playlist_id: String,
         video_id: String,
         failed: bool,
+        environment_variables: &EnvironmentVariables,
     ) -> Result<(), String> {
-        let initialzied_database = self.get_initialized_state_always()?;
+        let initialzied_database = self
+            .get_initialized_state_always(environment_variables)
+            .await?;
 
         return initialzied_database.put_downloaded_video(playlist_id, video_id, failed);
     }
 
-    pub fn put_playlist(&mut self, playlist_id: String, genre: String) -> Result<(), String> {
-        let initialzied_database = self.get_initialized_state_always()?;
+    pub async fn put_playlist(
+        &mut self,
+        playlist_id: String,
+        genre: String,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<(), String> {
+        let initialzied_database = self
+            .get_initialized_state_always(environment_variables)
+            .await?;
 
         return initialzied_database.put_playlist(playlist_id, genre);
     }
 
-    pub fn delete_playlist(&mut self, playlist_id: String) -> Result<(), String> {
-        let initialzied_database = self.get_initialized_state_always()?;
+    pub async fn delete_playlist(
+        &mut self,
+        playlist_id: String,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<(), String> {
+        let initialzied_database = self
+            .get_initialized_state_always(environment_variables)
+            .await?;
 
         return initialzied_database.delete_playlist(playlist_id);
     }
 
-    pub fn get_all_playlists(&mut self) -> Result<Vec<(String, String)>, String> {
-        let initialzied_database = self.get_initialized_state_always()?;
+    pub async fn get_all_playlists(
+        &mut self,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<Vec<(String, String)>, String> {
+        let initialzied_database = self
+            .get_initialized_state_always(environment_variables)
+            .await?;
 
         return initialzied_database.get_all_playlists();
     }
@@ -93,26 +124,32 @@ impl Database {
 
 impl InitializedDatabase {
     /// Create an InitializedDatabase from a UnintializedDatabase
-    pub fn new(_: &mut UninitializedDatabase) -> Result<InitializedDatabase, String> {
-        match std::fs::create_dir_all("data/database") {
-            Ok(()) => (),
-            Err(e) => {
-                return Err(format!(
-                    "Could not create files for database 'data/database': {}",
-                    e
-                ));
-            }
-        };
-
+    pub async fn new(
+        _: &mut UninitializedDatabase,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<InitializedDatabase, String> {
         // Download the database if it does not exist
+        // Check if file exists
         match std::fs::exists(std::path::Path::new("data/database/sqlite.db")) {
             Ok(file_exists) => {
+                // If the databse does not already exist
                 if !file_exists {
                     // Download the database from s3
+                    let file_path = std::path::Path::new("data/database/sqlite.db");
+                    s3_service::write_s3_object_to_file(
+                        environment_variables.get_database_s3_uri().to_owned(),
+                        file_path,
+                    )
+                    .await?;
                 }
             }
-            Err(e) => ,
-        }
+            Err(e) => {
+                return Err(format!(
+                    "File status for data/database/sqlite.db could not be confirmed nor denied: {}",
+                    e,
+                ))
+            }
+        };
 
         //initialize the connection
         let connection = rusqlite::Connection::open("data/database/sqlite.db").unwrap();

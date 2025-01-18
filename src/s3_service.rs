@@ -152,7 +152,3 @@ pub async fn put_file_to_s3_object(s3_uri: String, local_read_path: &Path) -> Re
 
     return Ok(());
 }
-/*
-use aws_config::meta::region::RegionProviderChain;
-use aws_sdk_s3::{config::Region, Client};
-*/
