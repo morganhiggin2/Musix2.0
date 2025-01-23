@@ -3,14 +3,13 @@ use std::collections::HashSet;
 use clap::{Args, Parser, Subcommand};
 
 use crate::{
-    audio_extractor::{EmptyAudioExtractor, FinishedAudioExtractor, InitializedAudioExtractor},
-    audio_tag_appender::{
-        EmptyAudioTagAppender, FinalizedAudioTagAppender, InitializedAudioTagAppender,
-    },
     database::Database,
     environment_extractor::EnvironmentVariables,
-    title_extractor::{EmptyTitleExtractor, FinishedTitleExtractor, InitializedTitleExtractor},
-    youtube_playlist_extractor::get_playlist_videos,
+    music_sources::{
+        get_music_source_from_enum, get_music_source_from_url,
+        soundcloud_service::SoundcloudMusicService, youtube_service::YoutubeMusicService,
+        DownloadedSong, MusicSource,
+    },
 };
 
 #[derive(Debug, Parser)]
@@ -40,7 +39,7 @@ pub struct DeletePlaylistArguments {
     playlist_id: String,
 }
 
-pub async fn parse_args(
+pub fn parse_args(
     database_context: &mut Database,
     environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
@@ -48,50 +47,42 @@ pub async fn parse_args(
 
     match args.command {
         Command::CreatePlaylist(args) => {
-            handle_create_playlist(args, database_context, environment_variables).await?
+            handle_create_playlist(args, database_context, environment_variables)?
         }
         Command::DeletePlaylist(args) => {
-            handle_delete_playlist(args, database_context, environment_variables).await?
+            handle_delete_playlist(args, database_context, environment_variables)?
         }
-        Command::ListPlaylists => {
-            handle_list_playlists(database_context, environment_variables).await?
-        }
-        Command::Run => handle_run(database_context, environment_variables).await?,
+        Command::ListPlaylists => handle_list_playlists(database_context, environment_variables)?,
+        Command::Run => handle_run(database_context, environment_variables)?,
     }
 
     return Ok(());
 }
 
 /// Create playlist with name and id
-pub async fn handle_create_playlist(
+pub fn handle_create_playlist(
     args: CreatePlaylistArguments,
     database_context: &mut Database,
     environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
-    return database_context
-        .put_playlist(args.playlist_id, args.genre, environment_variables)
-        .await;
+    return database_context.put_playlist(args.playlist_id, args.genre, environment_variables);
 }
 
 /// Delete playlist by name
-pub async fn handle_delete_playlist(
+pub fn handle_delete_playlist(
     args: DeletePlaylistArguments,
     database_context: &mut Database,
     environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
-    return database_context
-        .delete_playlist(args.playlist_id, environment_variables)
-        .await;
+    return database_context.delete_playlist(args.playlist_id, environment_variables);
 }
 
 /// List all playlists
-pub async fn handle_list_playlists(
+pub fn handle_list_playlists(
     database_context: &mut Database,
     environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
-    let playlists = database_context
-        .get_all_playlists(environment_variables)
-        .await?;
+    let playlists = database_context.get_all_playlists(environment_variables)?;
 
     // Print the playlists to the console
     println!("Playlists: ");
@@ -103,80 +94,65 @@ pub async fn handle_list_playlists(
     return Ok(());
 }
 
-// Handle run, which will attempt to download all the undownloaded videos from all the playlists in the database
-pub async fn handle_run(
+// Handle run, which will attempt to download all the undownloaded songs from all the playlists in the database
+pub fn handle_run(
     database_context: &mut Database,
     environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
     // get list of playlists
-    let playlists = database_context
-        .get_all_playlists(environment_variables)
-        .await?;
+    let playlists = database_context.get_all_playlists(environment_variables)?;
 
-    // list of downloaded video ids
-    let mut downloaded_video_ids = HashSet::<String>::new();
+    // list of downloaded song urls
+    let mut downloaded_song_urls = HashSet::<String>::new();
 
-    for (playlist_id, _playlist_genre) in playlists.to_owned() {
-        // get downloaded video ids
-        let downloaded_playlist_video_ids = database_context
-            .get_downloaded_videos_from_playlist(playlist_id, environment_variables)
-            .await?;
+    // get already downloaded songs for each playlist
+    for (playlist_url, _playlist_genre) in playlists.to_owned() {
+        // get downloaded song ids
+        let downloaded_playlist_song_urls = database_context
+            .get_downloaded_songs_from_playlist(playlist_url, environment_variables)?;
 
-        downloaded_playlist_video_ids.iter().for_each(|video_id| {
-            downloaded_video_ids.insert(video_id.to_owned());
+        downloaded_playlist_song_urls.iter().for_each(|song_url| {
+            downloaded_song_urls.insert(song_url.to_owned());
         });
     }
 
-    for (playlist_id, genre) in playlists.to_owned() {
-        // get videos
-        let playlist_video_ids = get_playlist_videos(playlist_id.to_owned()).await?;
+    // for every playlist, download the songs that are in the playlist
+    // but are not downloaded
+    // TODO genre
+    for (playlist_url, genre) in playlists.to_owned() {
+        // get music source type
+        // this is unique for each playlist as a playlist can only have one source type
+        let music_source_type = get_music_source_from_url(&playlist_url)?;
 
-        // for each video in playlist video ids
-        for to_download_video in playlist_video_ids {
-            let to_download_video_id = &to_download_video.video_id.to_owned();
+        // Create the designated music source
+        // TODO how can it return both but yet be a generic for one?????
+        let music_source: Box<dyn MusicSource> = get_music_source_from_enum(music_source_type);
 
-            // if video has already been downloaded
-            if downloaded_video_ids.contains(&playlist_id) {
-                // do not download video, continue
+        // get songs
+        let playlist_song_urls = music_source.get_playlist_song_information(&playlist_url)?;
+
+        // for each song in playlist song ids
+        for to_download_song in playlist_song_urls {
+            let song_url = to_download_song.url.to_owned();
+
+            // Get appropriate music source
+
+            // download video
+            let downloaded_song = music_source.download_song(&song_url)?;
+
+            // if song has already been downloaded
+            if downloaded_song_urls.contains(&playlist_url) {
+                // do not download song, continue
                 continue;
             }
 
-            // create audio extractor
-            let audio_extractor: InitializedAudioExtractor =
-                EmptyAudioExtractor::init(to_download_video_id);
-            let audio_extractor: FinishedAudioExtractor = audio_extractor.download().await?;
-
-            // get title from downloaded audio
-            let title_extractor: InitializedTitleExtractor =
-                EmptyTitleExtractor::init(audio_extractor.title().clone());
-            let title_extractor: FinishedTitleExtractor =
-                title_extractor.extract_from_title(audio_extractor.author())?;
-
-            // TODO remove
-            println!(
-                "song is at {} with title {}, name {}, and artist {} by video author {}",
-                audio_extractor.write_path().as_os_str().to_str().unwrap(),
-                audio_extractor.title(),
-                title_extractor.name(),
-                title_extractor.artist(),
-                audio_extractor.author()
-            );
-
-            // append the tags to the video
-            let tag_appender: InitializedAudioTagAppender =
-                EmptyAudioTagAppender::init(&audio_extractor);
-
-            let _tag_appender: FinalizedAudioTagAppender = tag_appender.append_metadata(&genre)?;
-
-            // put download video information into databse
-            database_context
-                .put_downloaded_video(
-                    to_download_video_id.to_owned(),
-                    playlist_id.to_owned(),
-                    false,
-                    environment_variables,
-                )
-                .await?;
+            // put download song information into databse
+            database_context.put_downloaded_song(
+                song_url.to_owned(),
+                playlist_url.to_owned(),
+                false,
+                environment_variables,
+            )?;
         }
     }
 

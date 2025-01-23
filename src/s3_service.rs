@@ -3,10 +3,7 @@ use aws_sdk_s3;
 use std::{io::Write, path::Path};
 
 // Get the object from s3 and write into the desired location
-pub async fn write_s3_object_to_file(
-    s3_uri: String,
-    local_write_path: &Path,
-) -> Result<(), String> {
+pub fn write_s3_object_to_file(s3_uri: String, local_write_path: &Path) -> Result<(), String> {
     // Extract bucket and key from s3 uri
     // the uri will be of the following format: s3:bucket/key
     let mut s3_uri_split = s3_uri.splitn(1, '/');
@@ -37,24 +34,19 @@ pub async fn write_s3_object_to_file(
         aws_config::profile::ProfileFileCredentialsProvider::builder().build();
 
     // create the aws config
-    let config = aws_config::defaults(BehaviorVersion::v2024_03_28())
+    let config_task = aws_config::defaults(BehaviorVersion::v2024_03_28())
         .region(region_provider)
         .credentials_provider(credentials_provider)
-        .load()
-        .await;
+        .load();
+    let config = futures::executor::block_on(config_task);
 
     // create the s3 config
     let sdk_config = aws_sdk_s3::Config::new(&config);
     let client = aws_sdk_s3::Client::from_conf(sdk_config);
 
     // get the s3 object, load it into memory
-    let mut s3_object = match client
-        .get_object()
-        .bucket(bucket_name)
-        .key(key_name)
-        .send()
-        .await
-    {
+    let s3_object_task = client.get_object().bucket(bucket_name).key(key_name).send();
+    let mut s3_object = match futures::executor::block_on(s3_object_task) {
         Ok(s3_object) => s3_object,
         Err(e) => {
             return Err(format!("Error fetching file from s3: {}", e));
@@ -72,10 +64,7 @@ pub async fn write_s3_object_to_file(
     };
 
     // Stream the contents of the object ot the file
-    while let Some(bytes) = s3_object
-        .body
-        .try_next()
-        .await
+    while let Some(bytes) = futures::executor::block_on(s3_object.body.try_next())
         .map_err(|err| format!("Failed to read from S3 download stream: {err:?}"))?
     {
         file.write_all(&bytes).map_err(|err| {

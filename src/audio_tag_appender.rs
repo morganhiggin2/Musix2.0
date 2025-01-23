@@ -1,8 +1,6 @@
 use audiotags::Tag;
 use std::fs::OpenOptions;
 
-use crate::audio_extractor::FinishedAudioExtractor;
-
 pub struct EmptyAudioTagAppender;
 
 pub struct InitializedAudioTagAppender<'a> {

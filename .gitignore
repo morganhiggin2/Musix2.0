@@ -2,3 +2,4 @@
 /data/audio/*
 /data/database/*
 /src/resources/api_key.txt
+src/resources/settings.json

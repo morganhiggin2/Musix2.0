@@ -10,6 +10,7 @@ pub struct EmptyTitleExtractor;
 
 pub struct InitializedTitleExtractor {
     title: String,
+    artist: String,
 }
 
 #[derive(Getters)]
@@ -22,14 +23,17 @@ pub struct FinishedTitleExtractor {
 }
 
 impl EmptyTitleExtractor {
-    pub fn init(title: String) -> InitializedTitleExtractor {
-        return InitializedTitleExtractor { title: title };
+    pub fn init(title: String, artist: String) -> InitializedTitleExtractor {
+        return InitializedTitleExtractor {
+            title: title,
+            artist: artist,
+        };
     }
 }
 
 impl InitializedTitleExtractor {
     // Extract music title and artist from video title
-    pub fn extract_from_title(&self, author: &str) -> Result<FinishedTitleExtractor, String> {
+    pub fn extract_from_title(&self) -> Result<FinishedTitleExtractor, String> {
         //replace all | & @ \\ \" / (n spaces to 1 sapace)
         //-> any sequence of special charaters is a seperator, getting rid of all sequence of spaces with one space
         let space_regex = match Regex::new(SPACE_REGEX) {
@@ -68,7 +72,7 @@ impl InitializedTitleExtractor {
                 (song_name, song_artist)
             }
             // If no artist in video title, make the video author the artist
-            None => (self.title.to_owned(), author.to_owned()),
+            None => (self.title.to_owned(), self.artist.to_owned()),
         };
 
         let song_name = song_info.0.trim();
@@ -89,23 +93,27 @@ mod tests {
 
     #[test]
     fn test_title_extractor() {
-        let empty_title_extractor =
-            EmptyTitleExtractor::init("Astro - Opium Remix (Slowed)".to_string());
-        let finalized_title_extractor = empty_title_extractor.extract_from_title("Mayhem").unwrap();
+        let empty_title_extractor = EmptyTitleExtractor::init(
+            "Astro - Opium Remix (Slowed)".to_string(),
+            "Mayhem".to_string(),
+        );
+        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
 
         assert_eq!(finalized_title_extractor.artist(), "Astro");
         assert_eq!(finalized_title_extractor.name(), "Opium Remix (Slowed)");
 
-        let empty_title_extractor = EmptyTitleExtractor::init("HIMG".to_string());
-        let finalized_title_extractor = empty_title_extractor.extract_from_title("Mayhem").unwrap();
+        let empty_title_extractor =
+            EmptyTitleExtractor::init("HIMG".to_string(), "Mayhem".to_string());
+        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
 
         assert_eq!(finalized_title_extractor.artist(), "Mayhem");
         assert_eq!(finalized_title_extractor.name(), "HIMG");
 
         let empty_title_extractor = EmptyTitleExtractor::init(
             "MOONDEITY x INTERWORLD - ONE CHANCE | SLOWED + REVERBED".to_string(),
+            "Mayhem".to_string(),
         );
-        let finalized_title_extractor = empty_title_extractor.extract_from_title("Mayhem").unwrap();
+        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
 
         assert_eq!(finalized_title_extractor.artist(), "MOONDEITY x INTERWORLD");
         assert_eq!(
@@ -115,8 +123,9 @@ mod tests {
 
         let empty_title_extractor = EmptyTitleExtractor::init(
             "seekae - test & recognize [ flume re - work ] slowed".to_string(),
+            "Mayhem".to_string(),
         );
-        let finalized_title_extractor = empty_title_extractor.extract_from_title("Mayhem").unwrap();
+        let finalized_title_extractor = empty_title_extractor.extract_from_title().unwrap();
 
         assert_eq!(finalized_title_extractor.artist(), "seekae");
         assert_eq!(

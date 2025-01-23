@@ -5,7 +5,10 @@ use std::io::prelude::*;
 
 #[derive(Serialize, Deserialize, Getters)]
 pub struct Settings {
-    //#[getset(get = "pub")]
+    #[getset(get = "pub")]
+    soundcloud_username: String,
+    #[getset(get = "pub")]
+    soundcloud_password: String,
 }
 
 pub fn parse_settings() -> Result<Settings, String> {

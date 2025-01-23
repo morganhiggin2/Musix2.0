@@ -11,6 +11,7 @@ RUN mkdir -p ~/.local/bin && \
     curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ~/.local/bin/yt-dlp && \
     chown a+rwx ~/.local/bin/yt-dlp
 
+// Copy the .aws/config and the settings.json
 
 CMD ["/bin/bash"]
 
