@@ -41,3 +41,4 @@ async fn main() {
 // - however, this exposes the risk of now it can create an object in s3, have to be specific about which object it can create
 // - already have to have the bucket exist
 // TODO migrate to anyhow
+// TODO unit tests for pasing using actual sample data from requests

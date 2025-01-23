@@ -62,7 +62,7 @@ impl MusicSource for YoutubeMusicService {
         };
 
         // get page json
-        let page_json = match serde_json::from_str(&response_text) {
+        let page_json: serde_json::Value = match serde_json::from_str(&response_text) {
             Ok(value) => value,
             Err(e) => {
                 return Err(format!("Failed to parse JSON response: {}", e));
@@ -70,12 +70,45 @@ impl MusicSource for YoutubeMusicService {
         };
 
         // search page json for playlist title
-        let items = page_json.
+        // items[0].snippet.localized.title
+        let items_array = match page_json.get("items") {
+            Some(items) => items.as_array().unwrap(),
+            None => {
+                return Err(format!("Could not extract 'items' array from page json"));
+            }
+        };
+        let item = items_array
+            .get(0)
+            .ok_or("Could not get 0th item from items array in page json")?;
 
-        // then items[0].snippet.localized.title
-        // get playlist id from url
-        let playlist_id = String::new();
-        todo!();
+        let snippet_information = match item.get("snippet") {
+            Some(item) => item,
+            None => {
+                return Err(format!(
+                    "Could not extract snippet information from item element in page json"
+                ));
+            }
+        };
+
+        let localized_information = match snippet_information.get("localized") {
+            Some(item) => item,
+            None => {
+                return Err(format!(
+                    "Could not extract localized information from snippet information in page json"
+                ));
+            }
+        };
+
+        let title_information = match localized_information.get("title") {
+            Some(item) => item,
+            None => {
+                return Err(format!("Could not extract title information array from localized information in page json"));
+            }
+        };
+
+        let playlist_title = title_information
+            .as_str()
+            .ok_or("Could not convert title information to string")?;
 
         let mut playlist_videos = Vec::new();
         let base_url = format!("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=25&playlistId={}&key={}&page_token=", playlist_id, GOOGLE_API_KEY);
@@ -185,7 +218,7 @@ impl MusicSource for YoutubeMusicService {
                     }
                 };
 
-                let published_at = match video_snippet.get("publishedAt") {
+                let _published_at = match video_snippet.get("publishedAt") {
                     Some(value) => value.as_str().unwrap_or(""),
                     None => {
                         return Err(
@@ -205,7 +238,8 @@ impl MusicSource for YoutubeMusicService {
                 let song_information = super::SongInformation {
                     url: url.to_owned(),
                     title: title_extractor.name().to_owned(),
-                    genre: "".to_string(),
+                    // genre is the title of the playlist
+                    genre: playlist_title.to_owned(),
                     artist: title_extractor.artist().to_owned(),
                 };
 
