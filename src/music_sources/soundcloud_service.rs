@@ -42,7 +42,7 @@ impl MusicSource for SoundcloudMusicService {
         url: &str,
     ) -> Result<Vec<super::SongInformation>, String> {
         // Fetch the main page of the playlist
-        let response = match ureq::get("").call() {
+        let response = match ureq::get(url).call() {
             Ok(response) => response,
             Err(e) => return Err(format!("Error making get playlist request: {}", e)),
         };
@@ -60,7 +60,7 @@ impl MusicSource for SoundcloudMusicService {
         // get the cross origin javascript scripts which are referenced in the file
         // that are normally hotloaded
         let script_url_scrape_regex =
-            match regex::Regex::new("crossorigin src=\"(https:\\\\/[a-z0-9\\/\\-.]+\\.js)") {
+            match regex::Regex::new("crossorigin src=\"(https:\\/[a-z0-9\\/\\-.]+\\.js)") {
                 Ok(exp) => exp,
                 Err(e) => {
                     return Err(format!(
@@ -82,11 +82,66 @@ impl MusicSource for SoundcloudMusicService {
             script_urls.push(url.to_owned());
         }
 
+        // we need to scrape the client id from the response body from each script
+        // so get the response body for each script url and scrape it for the client id
+        let client_id_regex = match regex::Regex::new("client_id=([A-z0-9]+)") {
+            Ok(exp) => exp,
+            Err(e) => {
+                return Err(format!(
+                    "Error creating client_id_regex Regex for playlist script scraping: {}",
+                    e
+                ))
+            }
+        };
+
+        // collect all client id scape results for all the script files
+        // Note: doing it this way to easily parallelize this in the short future
+        let mut scripts_client_id_matches = Vec::<Option<regex::Captures>>::new();
+
         // for each script
-        // TODO parallelize, make futures, and wait all their executions
         for script_url in script_urls {
             // fetch script content
+            // Fetch the main page of the playlist
+            let response = match ureq::get(&script_url).call() {
+                Ok(response) => response,
+                Err(e) => {
+                    return Err(format!(
+                        "Error making get cross origin playlist script request: {}",
+                        e
+                    ))
+                }
+            };
+
+            let response_body = match response.into_string() {
+                Ok(text) => text,
+                Err(e) => {
+                    return Err(format!(
+                        "Error retrieving response body from get cross origin playlist script request: {}",
+                        e
+                    ))
+                }
+            };
+
+            let mut script_url_scrape_matches = client_id_regex.captures_iter(&response_body);
+
+            let client_id_match_option = script_url_scrape_matches.next();
+            scripts_client_id_matches.push(client_id_match_option);
         }
+
+        // get the first match that is a non option
+        let scripts_client_id_found_match = match scripts_client_id_matches
+            .into_iter()
+            .filter(|match_option| matches!(match_option, Option::Some(_)))
+            .into_iter()
+            .next()
+        {
+            Some(client_id_match) => client_id_match,
+            None => {
+                return Err(format!(
+                    "No client id found in any of the cross origin scripts"
+                ));
+            }
+        };
 
         //   fetch scipt contents
         //   look for client_id=([A-z0-9]{32})
