@@ -96,7 +96,7 @@ impl MusicSource for SoundcloudMusicService {
 
         // collect all client id scape results for all the script files
         // Note: doing it this way to easily parallelize this in the short future
-        let mut scripts_client_id_matches = Vec::<Option<regex::Captures>>::new();
+        let mut scripts_found_client_ids = Vec::<String>::new();
 
         // for each script
         for script_url in script_urls {
@@ -122,26 +122,149 @@ impl MusicSource for SoundcloudMusicService {
                 }
             };
 
-            let mut script_url_scrape_matches = client_id_regex.captures_iter(&response_body);
+            // attempt to get the first match
+            let script_url_scrape_matches = client_id_regex.captures(&response_body);
 
-            let client_id_match_option = script_url_scrape_matches.next();
-            scripts_client_id_matches.push(client_id_match_option);
+            match script_url_scrape_matches {
+                // if a match
+                Some(capture) => {
+                    // add it to the list of found matches
+                    let (_, [client_id]) = capture.extract();
+                    scripts_found_client_ids.push(client_id.to_owned());
+                }
+                None => (),
+            }
         }
 
-        // get the first match that is a non option
-        let scripts_client_id_found_match = match scripts_client_id_matches
-            .into_iter()
-            .filter(|match_option| matches!(match_option, Option::Some(_)))
-            .into_iter()
-            .next()
-        {
-            Some(client_id_match) => client_id_match,
+        // because all the found client ids should be the same, get the first one
+        let client_id = match scripts_found_client_ids.get(0) {
+            Some(ele) => ele,
             None => {
+                return Err(format!("Could not find client id in any of the cross origin scripts in getting soundcloud playlist tracks"))
+            }
+        };
+
+        // using the original call's resposne body, get the inner window.__sc_hydration value
+        let window_hydration_extract_regex =
+            regex::Regex::new("\\<script\\>window\\.__sc_hydration[ ]*=[ ]*([.*]);\\<script\\>");
+
+        let window_hydration_start_i = match response_body.find("<script>window.__sc_hydration") {
+            Some(i) => i,
+            None => {
+                return Err("Could not find window_hydration_extract variable in get soundcloud playlist page".to_string());
+            }
+        };
+
+        // find first occurance after previous index
+        // TODO use iterator? first one gets the index
+        let (_, response_body_remaining_slice) =
+            match response_body.split_at_checked(window_hydration_start_i) {
+                Some(slices) => slices,
+                None => {
+                    return Err(
+                    "No remaining string in response body of main get soundcloud playlists request"
+                        .to_string()
+                    );
+                }
+            };
+
+        let window_hydration_end_i = match response_body_remaining_slice.find(";<script>") {
+            Some(i) => i + window_hydration_start_i,
+            None => {
+                return Err("Could not find window_hydration_extract variable in get soundcloud playlist page".to_string());
+            }
+        };
+
+        let (window_hydration_contents, _) =
+            match response_body_remaining_slice.split_at_checked(window_hydration_end_i) {
+                Some(slice) => slice,
+                None => return Err(
+                    "window hydration variable search invalid in soundcloud playlist list tracks"
+                        .to_string(),
+                ),
+            };
+
+        // prase json in free manner
+        let page_json: serde_json::Value = match serde_json::from_str(&response_body) {
+            Ok(value) => value,
+            Err(e) => {
                 return Err(format!(
-                    "No client id found in any of the cross origin scripts"
+                    "Failed to parse JSON response in get soundcloud playlist tracks: {}",
+                    e
                 ));
             }
         };
+
+        let hydration_array = match page_json.as_array() {
+            Some(arr) => arr,
+            None => {
+                return Err(format!(
+                    "Could not parse hydration variable contents as array in get soundcloud playlist tracks: {}",
+                    response_body
+                ));
+            }
+        };
+
+        for hydration_element in hydration_array {
+            // get hydration key
+            let hydration_key_value = match hydration_element.get("hydratable") {
+                Some(val) => val,
+                None => {
+                    return Err("Failed to get hydration key value from hydration array in get soundcloud playlist tracks".to_string());
+                }
+            };
+
+            if hydration_key_value == "playlists" {
+                let hydration_data = match hydration_element.get("data") {
+                    Some(data) => data,
+                    None => {
+                        // handle missing data here
+                        return Err(
+                            "No data found in hydration elementn in get soundcloud playlist tracks"
+                                .to_string(),
+                        );
+                    }
+                };
+
+                let hydration_track_data = match hydration_data.get("tracks") {
+                    Some(data) => data,
+                    None => {
+                        // handle missing data here
+                        return Err(
+                            "No tracks found in hydration data in get soundcloud playlist tracks"
+                                .to_string(),
+                        );
+                    }
+                };
+
+                let hydration_tracks = match hydration_track_data.as_array() {
+                    Some(data) => data,
+                    None => {
+                        // handle missing data here
+                        return Err(
+                            "Could not convert hydration tracks to array in get soundcloud playlist tracks"
+                                .to_string(),
+                        );
+                    }
+                };
+
+                for hydration_track in hydration_tracks {
+                    // permalink_url: url of the song to use
+                    // genre: genre
+                    // title: title
+                    // user.username
+                    // create downloadable song object
+                    // add to list of downloadable music
+                }
+
+                // get("tracks")
+                // per track,
+            }
+        }
+
+        // get first occurance of <script>window\.__sc_hydration
+        // then get first occurance of ;<script>
+        // trim inbetween string
 
         //   fetch scipt contents
         //   look for client_id=([A-z0-9]{32})
