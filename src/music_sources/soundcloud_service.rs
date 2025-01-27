@@ -12,7 +12,7 @@
 use regex;
 use ureq;
 
-use super::MusicSource;
+use super::{MusicSource, SongInformation};
 
 pub struct SoundcloudMusicService {}
 
@@ -56,6 +56,8 @@ impl MusicSource for SoundcloudMusicService {
                 ))
             }
         };
+
+        let mut song_informations = Vec::<super::SongInformation>::new();
 
         // get the cross origin javascript scripts which are referenced in the file
         // that are normally hotloaded
@@ -144,14 +146,12 @@ impl MusicSource for SoundcloudMusicService {
             }
         };
 
-        // using the original call's resposne body, get the inner window.__sc_hydration value
-        let window_hydration_extract_regex =
-            regex::Regex::new("\\<script\\>window\\.__sc_hydration[ ]*=[ ]*([.*]);\\<script\\>");
-
-        let window_hydration_start_i = match response_body.find("<script>window.__sc_hydration") {
-            Some(i) => i,
+        //let window_hydration_start_i = match response_body.find("<script>window.__sc_hydration") {
+        let window_hydration_start_i = match response_body.find("<script>window.__sc_hydration = ")
+        {
+            Some(i) => i + "<script>window.__sc_hydration = ".len(),
             None => {
-                return Err("Could not find window_hydration_extract variable in get soundcloud playlist page".to_string());
+                return Err("Could not find start window_hydration_extract variable in get soundcloud playlist page".to_string());
             }
         };
 
@@ -168,10 +168,10 @@ impl MusicSource for SoundcloudMusicService {
                 }
             };
 
-        let window_hydration_end_i = match response_body_remaining_slice.find(";<script>") {
-            Some(i) => i + window_hydration_start_i,
+        let window_hydration_end_i = match response_body_remaining_slice.find(";</script>") {
+            Some(i) => i,
             None => {
-                return Err("Could not find window_hydration_extract variable in get soundcloud playlist page".to_string());
+                return Err("Could not find end window_hydration_extract variable in get soundcloud playlist page".to_string());
             }
         };
 
@@ -185,17 +185,18 @@ impl MusicSource for SoundcloudMusicService {
             };
 
         // prase json in free manner
-        let page_json: serde_json::Value = match serde_json::from_str(&response_body) {
-            Ok(value) => value,
-            Err(e) => {
-                return Err(format!(
-                    "Failed to parse JSON response in get soundcloud playlist tracks: {}",
+        let hydration_json: serde_json::Value =
+            match serde_json::from_str(&window_hydration_contents) {
+                Ok(value) => value,
+                Err(e) => {
+                    return Err(format!(
+                    "Failed to parse hydration JSON response in get soundcloud playlist tracks: {}",
                     e
                 ));
-            }
-        };
+                }
+            };
 
-        let hydration_array = match page_json.as_array() {
+        let hydration_array = match hydration_json.as_array() {
             Some(arr) => arr,
             None => {
                 return Err(format!(
@@ -214,7 +215,7 @@ impl MusicSource for SoundcloudMusicService {
                 }
             };
 
-            if hydration_key_value == "playlists" {
+            if hydration_key_value == "playlist" {
                 let hydration_data = match hydration_element.get("data") {
                     Some(data) => data,
                     None => {
@@ -242,23 +243,27 @@ impl MusicSource for SoundcloudMusicService {
                     None => {
                         // handle missing data here
                         return Err(
-                            "Could not convert hydration tracks to array in get soundcloud playlist tracks"
+                            "Could not convert track information json to array in get soundcloud playlist tracks"
                                 .to_string(),
                         );
                     }
                 };
 
                 for hydration_track in hydration_tracks {
-                    // permalink_url: url of the song to use
-                    // genre: genre
-                    // title: title
-                    // user.username
-                    // create downloadable song object
-                    // add to list of downloadable music
-                }
+                    let track_id = match hydration_track.get("id") {
+                        Some(data) => data,
+                        None => {
+                            return Err("Could not id from a track information track track in get soundcloud playlist tracks".to_owned());
+                        }
+                    };
 
-                // get("tracks")
-                // per track,
+                    //TODO
+                    // match get permalink_url
+                    // Some(_), get track information from this json
+                    // None, get track information from track information url
+
+                    song_informations.push(song_information)
+                }
             }
         }
 
@@ -280,8 +285,135 @@ impl MusicSource for SoundcloudMusicService {
         //      - get publisher_metadata.artist
         //      - get title
 
-        return Ok(vec![]);
+        return Ok(song_informations);
     }
+}
+
+fn get_track_information_from_track_id(track_id: String) -> Result<super::SongInformation, String> {
+    // ------------ start get track information
+    // create soundcloud track id request
+    let get_track_information_url = format!("https://api-v2.soundcloud.com/tracks?ids={track_id}&client_id={client_id}&app_version=1737385876&app_locale=en");
+    println!("{get_track_information_url}");
+
+    // Fetch the main page of the playlist
+    let track_information_response = match ureq::get(url).call() {
+        Ok(response) => response,
+        Err(e) => return Err(format!("Error making get playlist request: {}", e)),
+    };
+
+    let track_information_response_body = match track_information_response.into_string() {
+        Ok(text) => text,
+        Err(e) => {
+            return Err(format!(
+                "Error retrieving response body from get playlist information request: {}",
+                e
+            ))
+        }
+    };
+
+    let track_information_json: serde_json::Value = match serde_json::from_str(
+        &track_information_response_body,
+    ) {
+        Ok(value) => value,
+        Err(e) => {
+            return Err(format!(
+                                    "Failed to parse track information json response in get soundcloud playlist tracks: {}",
+                                    e
+                                ));
+        }
+    };
+
+    let track_information_tracks = match track_information_json.as_array() {
+        Some(data) => data,
+        None => {
+            // handle missing data here
+            return Err(
+                                    "Could not convert track information tracks to array in get soundcloud playlist tracks"
+                                        .to_string(),
+                                );
+        }
+    };
+
+    let track_information_track = match track_information_json.get(0) {
+        Some(data) => data,
+        None => {
+            return Err(
+                "No tracks found in track information tracks in get soundcloud playlist tracks",
+            )
+            .to_string();
+        }
+    };
+    // ------------ end get track information
+}
+
+fn get_song_information_from_track_information(
+    information_json: &serde::Value,
+) -> Result<SongInformation, String> {
+    // permalink_url: url of the song to use
+    let permalink_url = match information_json.get("permalink_url") {
+        Some(data) => data,
+        None => {
+            // permalink could not be found, go and get the track information from the other links since it is going to be pagnated
+            return Err(
+                "Could not get permalink from a track information jsonin get soundcloud playlist tracks"
+                    .to_owned(),
+            );
+        }
+    };
+
+    // genre: genre
+    let genre = match information_json.get("genre") {
+        Some(data) => data,
+        None => {
+            return Err(
+                "Could not get genre from a track information jsonin get soundcloud playlist tracks"
+                    .to_owned(),
+            );
+        }
+    };
+
+    // title: title
+    let title = match information_json.get("title") {
+        Some(data) => data,
+        None => {
+            return Err(
+                "Could not get title from a track information jsonin get soundcloud playlist tracks"
+                    .to_owned(),
+            );
+        }
+    };
+
+    // user.username
+    let user_data = match information_json.get("user") {
+        Some(data) => data,
+        None => {
+            return Err(
+                "Could not get user from a track information jsonin get soundcloud playlist tracks"
+                    .to_owned(),
+            );
+        }
+    };
+
+    // create downloadable song object
+    let username = match user_data.get("username") {
+        Some(data) => data,
+        None => {
+            return Err(
+                "Could not get username from a track information jsonin get soundcloud playlist tracks"
+                    .to_owned(),
+            );
+        }
+    };
+
+    // add to list of downloadable music
+    let song_information = SongInformation {
+        url: permalink_url.to_string(),
+        title: title.to_string(),
+        genre: genre.to_string(),
+        artist: username.to_string(),
+    };
+
+    return Ok(song_information);
 }
 
 /*
