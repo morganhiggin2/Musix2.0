@@ -9,6 +9,7 @@ pub mod music_sources;
 pub mod s3_service;
 pub mod settings_parser;
 pub mod title_extractor;
+pub mod yt_dlp_caller;
 
 //TODO create directory if deleted
 // TODO get rid of tokio if possible
@@ -30,11 +31,17 @@ fn main() {
     */
     let soundcloud_music_service = SoundcloudMusicService::new();
 
-    soundcloud_music_service
+    let songs = soundcloud_music_service
         .get_playlist_song_information(
             "https://soundcloud.com/morgan-higginbotham-791870006/sets/electro-swing",
         )
         .unwrap();
+
+    let song = songs.get(0).unwrap();
+
+    let downloaded_song = yt_dlp_caller::download_song(song).unwrap();
+
+    //println!("{}", downloaded_song.title);
 }
 
 // TODO have the database file live on s3 for maintainability, as the docker image won't have to reset

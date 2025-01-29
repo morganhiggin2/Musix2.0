@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 pub mod soundcloud_service;
 pub mod youtube_service;
 
@@ -8,10 +10,11 @@ pub enum MusicSources {
 }
 
 pub struct DownloadedSong {
-    url: String,
-    title: String,
-    genre: String,
-    artist: String,
+    pub url: String,
+    pub title: String,
+    pub genre: String,
+    pub artist: String,
+    pub file_location: PathBuf,
 }
 
 pub struct SongInformation {

@@ -257,12 +257,20 @@ impl MusicSource for SoundcloudMusicService {
                         }
                     };
 
-                    //TODO
-                    // match get permalink_url
-                    // Some(_), get track information from this json
-                    // None, get track information from track information url
+                    // if the permalink can be fetched
+                    if let Some(_) = hydration_track.get("permalink_url") {
+                        // get rest of the song information
+                        let song_information: SongInformation =
+                            get_song_information_from_track_information(hydration_track)?;
 
-                    song_informations.push(song_information)
+                        song_informations.push(song_information);
+                    } else {
+                        // permalink cannot be fetched, need to get more track information
+                        let song_information: SongInformation =
+                            get_track_information_from_track_id(&track_id.to_string(), client_id)?;
+
+                        song_informations.push(song_information);
+                    }
                 }
             }
         }
@@ -289,14 +297,16 @@ impl MusicSource for SoundcloudMusicService {
     }
 }
 
-fn get_track_information_from_track_id(track_id: String) -> Result<super::SongInformation, String> {
+fn get_track_information_from_track_id(
+    track_id: &str,
+    client_id: &str,
+) -> Result<super::SongInformation, String> {
     // ------------ start get track information
     // create soundcloud track id request
     let get_track_information_url = format!("https://api-v2.soundcloud.com/tracks?ids={track_id}&client_id={client_id}&app_version=1737385876&app_locale=en");
-    println!("{get_track_information_url}");
 
     // Fetch the main page of the playlist
-    let track_information_response = match ureq::get(url).call() {
+    let track_information_response = match ureq::get(&get_track_information_url).call() {
         Ok(response) => response,
         Err(e) => return Err(format!("Error making get playlist request: {}", e)),
     };
@@ -317,9 +327,9 @@ fn get_track_information_from_track_id(track_id: String) -> Result<super::SongIn
         Ok(value) => value,
         Err(e) => {
             return Err(format!(
-                                    "Failed to parse track information json response in get soundcloud playlist tracks: {}",
-                                    e
-                                ));
+                "Failed to parse track information json response in get soundcloud playlist tracks: {}",
+                e
+            ));
         }
     };
 
@@ -328,58 +338,62 @@ fn get_track_information_from_track_id(track_id: String) -> Result<super::SongIn
         None => {
             // handle missing data here
             return Err(
-                                    "Could not convert track information tracks to array in get soundcloud playlist tracks"
-                                        .to_string(),
-                                );
+                "Could not convert track information tracks to array in get soundcloud playlist tracks"
+                .to_string(),
+            );
         }
     };
 
-    let track_information_track = match track_information_json.get(0) {
+    let track_information_track = match track_information_tracks.get(0) {
         Some(data) => data,
         None => {
             return Err(
-                "No tracks found in track information tracks in get soundcloud playlist tracks",
-            )
-            .to_string();
+                "No tracks found in track information tracks in get soundcloud playlist tracks"
+                    .to_string(),
+            );
         }
     };
-    // ------------ end get track information
+
+    // get track information
+    let song_information_result =
+        get_song_information_from_track_information(track_information_track);
+
+    return song_information_result;
 }
 
 fn get_song_information_from_track_information(
-    information_json: &serde::Value,
+    information_json: &serde_json::Value,
 ) -> Result<SongInformation, String> {
     // permalink_url: url of the song to use
-    let permalink_url = match information_json.get("permalink_url") {
-        Some(data) => data,
-        None => {
-            // permalink could not be found, go and get the track information from the other links since it is going to be pagnated
-            return Err(
-                "Could not get permalink from a track information jsonin get soundcloud playlist tracks"
-                    .to_owned(),
-            );
+    let permalink_url = match serde_json_get_str_val_helper(information_json, "permalink_url") {
+        Ok(data) => data,
+        Err(e) => {
+            return Err(format!(
+                "Could not get permalink_url from a track information json in get soundcloud playlist tracks: {}",
+                    e
+            ));
         }
     };
 
     // genre: genre
-    let genre = match information_json.get("genre") {
-        Some(data) => data,
-        None => {
-            return Err(
-                "Could not get genre from a track information jsonin get soundcloud playlist tracks"
-                    .to_owned(),
-            );
+    let genre = match serde_json_get_str_val_helper(information_json, "genre") {
+        Ok(data) => data,
+        Err(e) => {
+            return Err(format!(
+                "Could not get genre from a track information json in get soundcloud playlist tracks: {}",
+                    e
+            ));
         }
     };
 
     // title: title
-    let title = match information_json.get("title") {
-        Some(data) => data,
-        None => {
-            return Err(
-                "Could not get title from a track information jsonin get soundcloud playlist tracks"
-                    .to_owned(),
-            );
+    let title = match serde_json_get_str_val_helper(information_json, "title") {
+        Ok(data) => data,
+        Err(e) => {
+            return Err(format!(
+                    "Could not get title from a track information json in get soundcloud playlist tracks: {}",
+                        e
+                ));
         }
     };
 
@@ -388,20 +402,20 @@ fn get_song_information_from_track_information(
         Some(data) => data,
         None => {
             return Err(
-                "Could not get user from a track information jsonin get soundcloud playlist tracks"
+                "Could not get user from a track information json in get soundcloud playlist tracks"
                     .to_owned(),
             );
         }
     };
 
     // create downloadable song object
-    let username = match user_data.get("username") {
-        Some(data) => data,
-        None => {
-            return Err(
-                "Could not get username from a track information jsonin get soundcloud playlist tracks"
-                    .to_owned(),
-            );
+    let username = match serde_json_get_str_val_helper(user_data, "username") {
+        Ok(data) => data,
+        Err(e) => {
+            return Err(format!(
+                "Could not get username from a track information json in get soundcloud playlist tracks: {}",
+                    e
+            ));
         }
     };
 
@@ -414,6 +428,28 @@ fn get_song_information_from_track_information(
     };
 
     return Ok(song_information);
+}
+
+fn serde_json_get_str_val_helper(val: &serde_json::Value, key: &str) -> Result<String, String> {
+    let val_obj = match val.get(key) {
+        Some(data) => data,
+        None => {
+            return Err(format!(
+                "Could not get {} from a track information json",
+                key
+            ));
+        }
+    };
+
+    return match val_obj.as_str() {
+        Some(s) => Ok(s.to_string()),
+        None => {
+            return Err(format!(
+                "Could not convert {} to str in serde_json_get_str_val_helper",
+                key
+            ));
+        }
+    };
 }
 
 /*
