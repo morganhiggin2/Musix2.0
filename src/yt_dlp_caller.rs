@@ -2,6 +2,7 @@ use std::str;
 use std::{io::Read, process::Command};
 
 use crate::music_sources::{DownloadedSong, SongInformation};
+use crate::post_processor::init_file_env;
 
 // Calls the yt-dlp cli via os commands
 pub fn download_song(song_information: &SongInformation) -> Result<DownloadedSong, String> {

@@ -10,6 +10,7 @@ use crate::{
         soundcloud_service::SoundcloudMusicService, youtube_service::YoutubeMusicService,
         DownloadedSong, MusicSource,
     },
+    post_processor,
 };
 
 #[derive(Debug, Parser)]
@@ -116,6 +117,13 @@ pub fn handle_run(
         });
     }
 
+    // ensure file dir is setup
+    post_processor::init_file_env()?;
+
+    // move any current songs in downloaded folder from last possible session into
+    // the archive folder
+    post_processor::move_downloaded_songs_to_archive()?;
+
     // for every playlist, download the songs that are in the playlist
     // but are not downloaded
     // TODO genre
@@ -135,10 +143,11 @@ pub fn handle_run(
         for to_download_song in playlist_song_urls {
             let song_url = to_download_song.url.to_owned();
 
-            // Get appropriate music source
-
-            // download video
+            // download song
             let downloaded_song = music_source.download_song(&song_url)?;
+
+            // post process song
+            post_processor::post_process_downloaded_song(downloaded_song)?;
 
             // if song has already been downloaded
             if downloaded_song_urls.contains(&playlist_url) {
