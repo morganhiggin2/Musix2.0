@@ -1,6 +1,8 @@
-use std::collections::HashSet;
-
 use clap::{Args, Parser, Subcommand};
+use rand::{self, Rng};
+use std::collections::HashSet;
+use std::thread;
+use std::time::Duration;
 
 use crate::{
     database::Database,
@@ -89,7 +91,7 @@ pub fn handle_list_playlists(
     println!("Playlists: ");
 
     for playlist in playlists {
-        println!("Playlist with id {} and genre {}", playlist.0, playlist.1)
+        println!("Playlist with url {}", playlist)
     }
 
     return Ok(());
@@ -107,7 +109,7 @@ pub fn handle_run(
     let mut downloaded_song_urls = HashSet::<String>::new();
 
     // get already downloaded songs for each playlist
-    for (playlist_url, _playlist_genre) in playlists.to_owned() {
+    for playlist_url in playlists.to_owned() {
         // get downloaded song ids
         let downloaded_playlist_song_urls = database_context
             .get_downloaded_songs_from_playlist(playlist_url, environment_variables)?;
@@ -127,7 +129,7 @@ pub fn handle_run(
     // for every playlist, download the songs that are in the playlist
     // but are not downloaded
     // TODO genre
-    for (playlist_url, genre) in playlists.to_owned() {
+    for playlist_url in playlists.to_owned() {
         // get music source type
         // this is unique for each playlist as a playlist can only have one source type
         let music_source_type = get_music_source_from_url(&playlist_url)?;
@@ -143,17 +145,36 @@ pub fn handle_run(
         for to_download_song in playlist_song_urls {
             let song_url = to_download_song.url.to_owned();
 
-            // download song
-            let downloaded_song = music_source.download_song(&song_url)?;
-
-            // post process song
-            post_processor::post_process_downloaded_song(downloaded_song)?;
-
             // if song has already been downloaded
             if downloaded_song_urls.contains(&playlist_url) {
                 // do not download song, continue
                 continue;
             }
+
+            // download song
+            let downloaded_song_result = music_source.download_song(&song_url);
+            let downloaded_song = match downloaded_song_result {
+                Ok(song_info) => song_info,
+                Err(e) => {
+                    println!(
+                        "Song {} failed to downloaded, marking as failed: {}",
+                        song_url, e
+                    );
+
+                    // put download song information into databse
+                    database_context.put_downloaded_song(
+                        song_url.to_owned(),
+                        playlist_url.to_owned(),
+                        true,
+                        environment_variables,
+                    )?;
+
+                    continue;
+                }
+            };
+
+            // post process song
+            post_processor::post_process_downloaded_song(downloaded_song)?;
 
             // put download song information into databse
             database_context.put_downloaded_song(
@@ -162,6 +183,10 @@ pub fn handle_run(
                 false,
                 environment_variables,
             )?;
+
+            // random sleep so we don't give the music provider sneaky suspicions *__*
+            let sleep_time = rand::rng().random_range(2..7);
+            thread::sleep(Duration::from_secs(sleep_time));
         }
     }
 

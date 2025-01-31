@@ -61,51 +61,51 @@ impl Database {
     // Wrapper for initiazlied database calls
     pub fn get_downloaded_songs_from_playlist(
         &mut self,
-        playlist_id: String,
+        playlist_url: String,
         environment_variables: &EnvironmentVariables,
     ) -> Result<Vec<String>, String> {
         let initialzied_database = self.get_initialized_state_always(environment_variables)?;
 
-        return initialzied_database.get_downloaded_songs_from_playlist(playlist_id);
+        return initialzied_database.get_downloaded_songs_from_playlist(playlist_url);
     }
 
     pub fn put_downloaded_song(
         &mut self,
-        playlist_id: String,
-        song_id: String,
+        playlist_url: String,
+        song_url: String,
         failed: bool,
         environment_variables: &EnvironmentVariables,
     ) -> Result<(), String> {
         let initialzied_database = self.get_initialized_state_always(environment_variables)?;
 
-        return initialzied_database.put_downloaded_song(playlist_id, song_id, failed);
+        return initialzied_database.put_downloaded_song(playlist_url, song_url, failed);
     }
 
     pub fn put_playlist(
         &mut self,
-        playlist_id: String,
+        playlist_url: String,
         genre: String,
         environment_variables: &EnvironmentVariables,
     ) -> Result<(), String> {
         let initialzied_database = self.get_initialized_state_always(environment_variables)?;
 
-        return initialzied_database.put_playlist(playlist_id, genre);
+        return initialzied_database.put_playlist(playlist_url, genre);
     }
 
     pub fn delete_playlist(
         &mut self,
-        playlist_id: String,
+        playlist_url: String,
         environment_variables: &EnvironmentVariables,
     ) -> Result<(), String> {
         let initialzied_database = self.get_initialized_state_always(environment_variables)?;
 
-        return initialzied_database.delete_playlist(playlist_id);
+        return initialzied_database.delete_playlist(playlist_url);
     }
 
     pub fn get_all_playlists(
         &mut self,
         environment_variables: &EnvironmentVariables,
-    ) -> Result<Vec<(String, String)>, String> {
+    ) -> Result<Vec<String>, String> {
         let initialzied_database = self.get_initialized_state_always(environment_variables)?;
 
         return initialzied_database.get_all_playlists();
@@ -153,10 +153,10 @@ impl InitializedDatabase {
 
         //create / re-establish presence of necessary tables
         let create_table_queries = [
-            "CREATE TABLE IF NOT EXISTS playlists (playlist_id VARCHAR(11), genre TEXT)",
-            "CREATE TABLE IF NOT EXISTS downloaded_songs (youtube_song_id VARCHAR(11), playlist_id VARCHAR(11), failed BOOLEAN)",
-            "CREATE UNIQUE INDEX IF NOT EXISTS playlists_playlists_id_index ON playlists (playlist_id)",
-            "CREATE UNIQUE INDEX IF NOT EXISTS downloaded_songs_song_id ON downloaded_songs (soundcloud song url)"
+            "CREATE TABLE IF NOT EXISTS playlists (playlist_url VARCHAR(11))",
+            "CREATE TABLE IF NOT EXISTS downloaded_songs (song_url VARCHAR(11), playlist_url VARCHAR(11), failed BOOLEAN)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS playlists_playlists_id_index ON playlists (playlist_url)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS downloaded_songs_song_url ON downloaded_songs (song_url, playlist_id)"
         ];
 
         //for each create table query
@@ -180,13 +180,13 @@ impl InitializedDatabase {
 
     pub fn get_downloaded_songs_from_playlist(
         &self,
-        playlist_id: String,
+        playlist_url: String,
     ) -> Result<Vec<String>, String> {
         //create query
-        let query = "SELECT * FROM downloaded_songs WHERE playlist_id like ?1";
+        let query = "SELECT * FROM downloaded_songs WHERE playlist_url like ?1";
 
         //list of youtube song ids
-        let mut youtube_song_ids: Vec<String> = Vec::new();
+        let mut song_urls: Vec<String> = Vec::new();
 
         //prepare statment
         let mut statement = match self.connection.prepare(query) {
@@ -200,7 +200,7 @@ impl InitializedDatabase {
         };
 
         //execute query, map resulting rows
-        let songs = match statement.query_map(params![playlist_id], |row| {
+        let songs = match statement.query_map(params![playlist_url], |row| {
             let row_str: String = row.get(0)?;
             Ok(row_str)
         }) {
@@ -218,18 +218,18 @@ impl InitializedDatabase {
                 }
             };
 
-            youtube_song_ids.push(song);
+            song_urls.push(song);
         }
 
-        return Ok(youtube_song_ids);
+        return Ok(song_urls);
     }
 
     /// Put downloaded song information into database
     ///   If already exists, will silently ignore
     pub fn put_downloaded_song(
         &self,
-        playlist_id: String,
-        song_id: String,
+        playlist_url: String,
+        song_url: String,
         failed: bool,
     ) -> Result<(), String> {
         //create query
@@ -238,7 +238,7 @@ impl InitializedDatabase {
         // execute statement
         let statement_result = self
             .connection
-            .execute(&query, params![song_id, playlist_id, failed]);
+            .execute(&query, params![song_url, playlist_url, failed]);
 
         //execute query, parse result
         match statement_result {
@@ -256,12 +256,15 @@ impl InitializedDatabase {
 
     /// Put playlist information into database
     ///   If already exists, will silently ignore
-    pub fn put_playlist(&self, playlist_id: String, genre: String) -> Result<(), String> {
+    pub fn put_playlist(&self, playlist_url: String, genre: String) -> Result<(), String> {
         //create query
-        let query = "INSERT OR REPLACE INTO playlists(playlist_id, genre) VALUES (?1, ?2)";
+        let query = "INSERT OR REPLACE INTO playlists(playlist_url, genre) VALUES (?1, ?2)";
 
         //generate prepared statment
-        let _ = match self.connection.execute(&query, params![playlist_id, genre]) {
+        let _ = match self
+            .connection
+            .execute(&query, params![playlist_url, genre])
+        {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
@@ -276,12 +279,12 @@ impl InitializedDatabase {
 
     /// Delete playlist from database.
     /// If the playlist does not exist, will do nothing
-    pub fn delete_playlist(&self, playlist_id: String) -> Result<(), String> {
+    pub fn delete_playlist(&self, playlist_url: String) -> Result<(), String> {
         //delete all downloads songs from the downloaded songs table with the playlist id
-        let query = "DELETE FROM downloaded_songs WHERE playlist_id = ?1";
+        let query = "DELETE FROM downloaded_songs WHERE playlist_url = ?1";
 
         // execute statement
-        let _ = match self.connection.execute(&query, params![playlist_id]) {
+        let _ = match self.connection.execute(&query, params![playlist_url]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
@@ -292,10 +295,10 @@ impl InitializedDatabase {
         };
 
         //delete the playlist from the playlists database
-        let query = "DELETE FROM playlists WHERE playlist_id = ?1";
+        let query = "DELETE FROM playlists WHERE playlist_url = ?1";
 
         // execute statement
-        let _ = match self.connection.execute(&query, params![playlist_id]) {
+        let _ = match self.connection.execute(&query, params![playlist_url]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
@@ -309,12 +312,12 @@ impl InitializedDatabase {
     }
 
     // Returns a list of tuples containing (playlist id, genre) for each playlist
-    pub fn get_all_playlists(&self) -> Result<Vec<(String, String)>, String> {
+    pub fn get_all_playlists(&self) -> Result<Vec<String>, String> {
         //create query
         let query = "SELECT * FROM playlists";
 
         //list of playlist ids
-        let mut playlists: Vec<(String, String)> = Vec::new();
+        let mut playlists: Vec<String> = Vec::new();
 
         //prepare statment
         let mut statement = match self.connection.prepare(query) {
@@ -329,10 +332,9 @@ impl InitializedDatabase {
 
         //execute query, map resulting rows
         let playlists_results = match statement.query_map([], |row| {
-            let playlist_id: String = row.get(0)?;
-            let genre: String = row.get(1)?;
+            let playlist_url: String = row.get(0)?;
 
-            Ok((playlist_id, genre))
+            Ok(playlist_url)
         }) {
             Ok(some) => some,
             Err(e) => {
