@@ -26,13 +26,13 @@ pub struct SongInformation {
 
 /* Common trait defining the behavior of a music service */
 pub trait MusicSource {
-    fn download_song(&self, url: &str) -> Result<DownloadedSong, String>;
+    fn download_song(&self, song_information: &SongInformation) -> Result<DownloadedSong, String>;
     fn get_playlist_song_information(&self, url: &str) -> Result<Vec<SongInformation>, String>;
 }
 
 pub fn get_music_source_from_url(url: &str) -> Result<MusicSources, String> {
     // get origin of the url
-    let origin_regex = match regex::Regex::new(r"your_regex_here") {
+    let origin_regex = match regex::Regex::new(r"https:\/\/([A-z0-9_-]+)\.([A-z0-9_-]+){1}\.") {
         Ok(regex) => regex,
         Err(e) => {
             return Err(format!("Error in regex creation: {}", e));
@@ -46,7 +46,18 @@ pub fn get_music_source_from_url(url: &str) -> Result<MusicSources, String> {
         None => return Err(format!("Could not find origin url in url: {}", url)),
     };
 
-    let (_full, [origin]) = regex_catpure_group.extract();
+    // get last match as origin
+    let mut origin_found = None;
+    for m in regex_catpure_group.iter() {
+        origin_found = m.map(|v| v.as_str());
+    }
+
+    let origin = match origin_found {
+        Some(origin) => origin,
+        None => {
+            return Err(format!("No matches found for origin in url: {}", url));
+        }
+    };
 
     // assert there is only one match
     assert!(

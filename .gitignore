@@ -4,3 +4,5 @@
 /src/resources/api_key.txt
 src/resources/settings.json
 yt-dlp
+downloaded/*
+archive/*

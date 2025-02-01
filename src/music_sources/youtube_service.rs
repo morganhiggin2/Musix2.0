@@ -1,10 +1,10 @@
 use ureq;
 
+use super::{MusicSource, SongInformation};
 use crate::title_extractor::{
     EmptyTitleExtractor, FinishedTitleExtractor, InitializedTitleExtractor,
 };
-
-use super::MusicSource;
+use crate::yt_dlp_caller;
 
 const GOOGLE_API_KEY: &str = include_str!("../resources/api_key.txt");
 
@@ -25,8 +25,11 @@ impl YoutubeMusicService {
 }
 
 impl MusicSource for YoutubeMusicService {
-    fn download_song(&self, url: &str) -> Result<super::DownloadedSong, String> {
-        todo!();
+    fn download_song(
+        &self,
+        song_information: &SongInformation,
+    ) -> Result<super::DownloadedSong, String> {
+        return yt_dlp_caller::download_song(&song_information);
     }
 
     fn get_playlist_song_information(
@@ -39,14 +42,14 @@ impl MusicSource for YoutubeMusicService {
                 Ok(regex) => regex,
                 Err(err) => return Err(format!("Failed to create regex: {}", err)),
             };
-        let playlist_id = url_regex
+        let playlist_url = url_regex
             .captures(url)
             .and_then(|caps| caps.get(1))
             .ok_or("Could not extract playlist id from url")?
             .as_str();
 
         // get playlist information from https://www.googleapis.com/youtube/v3/playlists?part=snippet%2Clocalizations&id=" + playlistId + "&fields=items(localizations%2Csnippet%2Flocalized%2Ftitle)&key=" + KEY;
-        let url = format!("https://www.googleapis.com/youtube/v3/playlists?part=snippet%2Clocalizations&id={}&fields=items(localizations%2Csnippet%2Flocalized%2Ftitle)&key={}", playlist_id, GOOGLE_API_KEY);
+        let url = format!("https://www.googleapis.com/youtube/v3/playlists?part=snippet%2Clocalizations&id={}&fields=items(localizations%2Csnippet%2Flocalized%2Ftitle)&key={}", playlist_url, GOOGLE_API_KEY);
         let response = match ureq::get(&url).call() {
             Ok(response) => response,
             Err(err) => {
@@ -111,7 +114,7 @@ impl MusicSource for YoutubeMusicService {
             .ok_or("Could not convert title information to string")?;
 
         let mut playlist_videos = Vec::new();
-        let base_url = format!("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=25&playlistId={}&key={}&page_token=", playlist_id, GOOGLE_API_KEY);
+        let base_url = format!("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=25&playlistId={}&key={}&page_token=", playlist_url, GOOGLE_API_KEY);
 
         let mut page_token = "";
         let mut page_json: serde_json::Value;

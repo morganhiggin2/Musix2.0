@@ -12,6 +12,8 @@
 use regex;
 use ureq;
 
+use crate::yt_dlp_caller;
+
 use super::{MusicSource, SongInformation};
 
 pub struct SoundcloudMusicService {}
@@ -24,17 +26,11 @@ impl SoundcloudMusicService {
 
 /* implement the common behvaior for a music service */
 impl MusicSource for SoundcloudMusicService {
-    fn download_song(&self, url: &str) -> Result<super::DownloadedSong, String> {
-        // format
-
-        /*
-        // build cli command
-        let cli_command = format!(
-            "yt-dlp {} --audio-format mp3 --username {} --password {}",
-            url, username, password
-        );*/
-
-        todo!()
+    fn download_song(
+        &self,
+        song_information: &SongInformation,
+    ) -> Result<super::DownloadedSong, String> {
+        return yt_dlp_caller::download_song(&song_information);
     }
 
     fn get_playlist_song_information(
@@ -365,7 +361,8 @@ fn get_song_information_from_track_information(
     information_json: &serde_json::Value,
 ) -> Result<SongInformation, String> {
     // permalink_url: url of the song to use
-    let permalink_url = match serde_json_get_str_val_helper(information_json, "permalink_url") {
+    let permalink_url = match serde_json_get_str_val_helper(information_json, "permalink_url", None)
+    {
         Ok(data) => data,
         Err(e) => {
             return Err(format!(
@@ -376,7 +373,7 @@ fn get_song_information_from_track_information(
     };
 
     // genre: genre
-    let genre = match serde_json_get_str_val_helper(information_json, "genre") {
+    let genre = match serde_json_get_str_val_helper(information_json, "genre", Some("N/A")) {
         Ok(data) => data,
         Err(e) => {
             return Err(format!(
@@ -387,7 +384,7 @@ fn get_song_information_from_track_information(
     };
 
     // title: title
-    let title = match serde_json_get_str_val_helper(information_json, "title") {
+    let title = match serde_json_get_str_val_helper(information_json, "title", None) {
         Ok(data) => data,
         Err(e) => {
             return Err(format!(
@@ -409,7 +406,7 @@ fn get_song_information_from_track_information(
     };
 
     // create downloadable song object
-    let username = match serde_json_get_str_val_helper(user_data, "username") {
+    let username = match serde_json_get_str_val_helper(user_data, "username", None) {
         Ok(data) => data,
         Err(e) => {
             return Err(format!(
@@ -430,7 +427,11 @@ fn get_song_information_from_track_information(
     return Ok(song_information);
 }
 
-fn serde_json_get_str_val_helper(val: &serde_json::Value, key: &str) -> Result<String, String> {
+fn serde_json_get_str_val_helper(
+    val: &serde_json::Value,
+    key: &str,
+    default_val: Option<&str>,
+) -> Result<String, String> {
     let val_obj = match val.get(key) {
         Some(data) => data,
         None => {
@@ -444,6 +445,10 @@ fn serde_json_get_str_val_helper(val: &serde_json::Value, key: &str) -> Result<S
     return match val_obj.as_str() {
         Some(s) => Ok(s.to_string()),
         None => {
+            if let Some(def_string_value) = default_val {
+                return Ok(def_string_value.to_string());
+            }
+
             return Err(format!(
                 "Could not convert {} to str in serde_json_get_str_val_helper",
                 key

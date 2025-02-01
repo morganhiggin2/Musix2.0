@@ -1,16 +1,16 @@
 use clap::{Args, Parser, Subcommand};
 use rand::{self, Rng};
-use std::collections::HashSet;
+use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
+use std::{collections::HashSet, path::PathBuf};
 
+use crate::url_enforcer;
 use crate::{
     database::Database,
     environment_extractor::EnvironmentVariables,
     music_sources::{
-        get_music_source_from_enum, get_music_source_from_url,
-        soundcloud_service::SoundcloudMusicService, youtube_service::YoutubeMusicService,
-        DownloadedSong, MusicSource,
+        get_music_source_from_enum, get_music_source_from_url, DownloadedSong, MusicSource,
     },
     post_processor,
 };
@@ -33,13 +33,12 @@ pub enum Command {
 
 #[derive(Debug, Args)]
 pub struct CreatePlaylistArguments {
-    playlist_id: String,
-    genre: String,
+    playlist_url: String,
 }
 
 #[derive(Debug, Args)]
 pub struct DeletePlaylistArguments {
-    playlist_id: String,
+    playlist_url: String,
 }
 
 pub fn parse_args(
@@ -68,7 +67,10 @@ pub fn handle_create_playlist(
     database_context: &mut Database,
     environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
-    return database_context.put_playlist(args.playlist_id, args.genre, environment_variables);
+    // ensure that the playlist url is valid
+    url_enforcer::enforce_url(&args.playlist_url)?;
+
+    return database_context.put_playlist(args.playlist_url, environment_variables);
 }
 
 /// Delete playlist by name
@@ -77,7 +79,7 @@ pub fn handle_delete_playlist(
     database_context: &mut Database,
     environment_variables: &EnvironmentVariables,
 ) -> Result<(), String> {
-    return database_context.delete_playlist(args.playlist_id, environment_variables);
+    return database_context.delete_playlist(args.playlist_url, environment_variables);
 }
 
 /// List all playlists
@@ -128,7 +130,6 @@ pub fn handle_run(
 
     // for every playlist, download the songs that are in the playlist
     // but are not downloaded
-    // TODO genre
     for playlist_url in playlists.to_owned() {
         // get music source type
         // this is unique for each playlist as a playlist can only have one source type
@@ -146,13 +147,15 @@ pub fn handle_run(
             let song_url = to_download_song.url.to_owned();
 
             // if song has already been downloaded
-            if downloaded_song_urls.contains(&playlist_url) {
+            if downloaded_song_urls.contains(&to_download_song.url) {
                 // do not download song, continue
                 continue;
             }
 
+            println!("Downloading {}", song_url);
+
             // download song
-            let downloaded_song_result = music_source.download_song(&song_url);
+            let downloaded_song_result = music_source.download_song(&to_download_song);
             let downloaded_song = match downloaded_song_result {
                 Ok(song_info) => song_info,
                 Err(e) => {

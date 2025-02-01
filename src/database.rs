@@ -84,12 +84,11 @@ impl Database {
     pub fn put_playlist(
         &mut self,
         playlist_url: String,
-        genre: String,
         environment_variables: &EnvironmentVariables,
     ) -> Result<(), String> {
         let initialzied_database = self.get_initialized_state_always(environment_variables)?;
 
-        return initialzied_database.put_playlist(playlist_url, genre);
+        return initialzied_database.put_playlist(playlist_url);
     }
 
     pub fn delete_playlist(
@@ -126,10 +125,10 @@ impl InitializedDatabase {
                 if !file_exists {
                     // Download the database from s3
                     let file_path = std::path::Path::new("data/database/sqlite.db");
-                    s3_service::write_s3_object_to_file(
+                    /*s3_service::write_s3_object_to_file(
                         environment_variables.get_database_s3_uri().to_owned(),
                         file_path,
-                    )?;
+                    )?;*/
                 }
             }
             Err(e) => {
@@ -156,7 +155,7 @@ impl InitializedDatabase {
             "CREATE TABLE IF NOT EXISTS playlists (playlist_url VARCHAR(11))",
             "CREATE TABLE IF NOT EXISTS downloaded_songs (song_url VARCHAR(11), playlist_url VARCHAR(11), failed BOOLEAN)",
             "CREATE UNIQUE INDEX IF NOT EXISTS playlists_playlists_id_index ON playlists (playlist_url)",
-            "CREATE UNIQUE INDEX IF NOT EXISTS downloaded_songs_song_url ON downloaded_songs (song_url, playlist_id)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS downloaded_songs_song_url ON downloaded_songs (song_url, playlist_url)"
         ];
 
         //for each create table query
@@ -183,7 +182,7 @@ impl InitializedDatabase {
         playlist_url: String,
     ) -> Result<Vec<String>, String> {
         //create query
-        let query = "SELECT * FROM downloaded_songs WHERE playlist_url like ?1";
+        let query = "SELECT * FROM downloaded_songs WHERE playlist_url = ?1";
 
         //list of youtube song ids
         let mut song_urls: Vec<String> = Vec::new();
@@ -233,12 +232,12 @@ impl InitializedDatabase {
         failed: bool,
     ) -> Result<(), String> {
         //create query
-        let query = "INSERT INTO downloaded_songs VALUES (?1, ?2, ?3) ON CONFLICT(?1) DO NOTHING";
+        let query = "INSERT INTO downloaded_songs VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING";
 
         // execute statement
         let statement_result = self
             .connection
-            .execute(&query, params![song_url, playlist_url, failed]);
+            .execute(&query, params![playlist_url, song_url, failed]);
 
         //execute query, parse result
         match statement_result {
@@ -256,15 +255,14 @@ impl InitializedDatabase {
 
     /// Put playlist information into database
     ///   If already exists, will silently ignore
-    pub fn put_playlist(&self, playlist_url: String, genre: String) -> Result<(), String> {
+    pub fn put_playlist(&self, playlist_url: String) -> Result<(), String> {
+        // ensure that url has https protocol and suborigin, origin, and root origin
+
         //create query
-        let query = "INSERT OR REPLACE INTO playlists(playlist_url, genre) VALUES (?1, ?2)";
+        let query = "INSERT OR REPLACE INTO playlists(playlist_url) VALUES (?1)";
 
         //generate prepared statment
-        let _ = match self
-            .connection
-            .execute(&query, params![playlist_url, genre])
-        {
+        let _ = match self.connection.execute(&query, params![playlist_url]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(

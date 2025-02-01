@@ -11,12 +11,10 @@ pub mod post_processor;
 pub mod s3_service;
 pub mod settings_parser;
 pub mod title_extractor;
+pub mod url_enforcer;
 pub mod yt_dlp_caller;
 
-//TODO create directory if deleted
-// TODO get rid of tokio if possible
 fn main() {
-    /*
     // Get environment variables
     let environment_variables = get_environment_variables().unwrap();
 
@@ -24,24 +22,7 @@ fn main() {
     let mut database_context = Database::default();
 
     //parse command line arguments and execute them
-    command_line_runtime::parse_args(&mut database_context, &environment_variables)
-        .await
-        .unwrap();
-
-    let audio_extractor = EmptyAudioExtractor::init("FZ8BxMU3BYc");
-    audio_extractor.download().await.unwrap();
-    */
-    let soundcloud_music_service = SoundcloudMusicService::new();
-
-    let songs = soundcloud_music_service
-        .get_playlist_song_information(
-            "https://soundcloud.com/morgan-higginbotham-791870006/sets/electro-swing",
-        )
-        .unwrap();
-
-    let song = songs.get(0).unwrap();
-
-    let downloaded_song = yt_dlp_caller::download_song(song).unwrap();
+    command_line_runtime::parse_args(&mut database_context, &environment_variables).unwrap();
 
     //println!("{}", downloaded_song.title);
 }
