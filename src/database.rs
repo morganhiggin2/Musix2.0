@@ -1,4 +1,4 @@
-use crate::{environment_extractor::EnvironmentVariables, s3_service};
+use crate::environment_extractor::EnvironmentVariables;
 use rusqlite::{self, params};
 
 pub struct Database {
@@ -61,7 +61,7 @@ impl Database {
     // Wrapper for initiazlied database calls
     pub fn get_downloaded_songs_from_playlist(
         &mut self,
-        playlist_url: String,
+        playlist_url: &str,
         environment_variables: &EnvironmentVariables,
     ) -> Result<Vec<String>, String> {
         let initialzied_database = self.get_initialized_state_always(environment_variables)?;
@@ -115,30 +115,8 @@ impl InitializedDatabase {
     /// Create an InitializedDatabase from a UnintializedDatabase
     pub fn new(
         _: &mut UninitializedDatabase,
-        environment_variables: &EnvironmentVariables,
+        _environment_variables: &EnvironmentVariables,
     ) -> Result<InitializedDatabase, String> {
-        // Download the database if it does not exist
-        // Check if file exists
-        match std::fs::exists(std::path::Path::new("data/database/sqlite.db")) {
-            Ok(file_exists) => {
-                // If the databse does not already exist
-                if !file_exists {
-                    // Download the database from s3
-                    let file_path = std::path::Path::new("data/database/sqlite.db");
-                    /*s3_service::write_s3_object_to_file(
-                        environment_variables.get_database_s3_uri().to_owned(),
-                        file_path,
-                    )?;*/
-                }
-            }
-            Err(e) => {
-                return Err(format!(
-                    "File status for data/database/sqlite.db could not be confirmed nor denied: {}",
-                    e,
-                ))
-            }
-        };
-
         //initialize the connection
         let connection = match rusqlite::Connection::open("data/database/sqlite.db") {
             Ok(conn) => conn,
@@ -179,7 +157,7 @@ impl InitializedDatabase {
 
     pub fn get_downloaded_songs_from_playlist(
         &self,
-        playlist_url: String,
+        playlist_url: &str,
     ) -> Result<Vec<String>, String> {
         //create query
         let query = "SELECT * FROM downloaded_songs WHERE playlist_url = ?1";
@@ -237,7 +215,7 @@ impl InitializedDatabase {
         // execute statement
         let statement_result = self
             .connection
-            .execute(&query, params![playlist_url, song_url, failed]);
+            .execute(query, params![playlist_url, song_url, failed]);
 
         //execute query, parse result
         match statement_result {
@@ -262,7 +240,7 @@ impl InitializedDatabase {
         let query = "INSERT OR REPLACE INTO playlists(playlist_url) VALUES (?1)";
 
         //generate prepared statment
-        let _ = match self.connection.execute(&query, params![playlist_url]) {
+        let _ = match self.connection.execute(query, params![playlist_url]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
@@ -282,7 +260,7 @@ impl InitializedDatabase {
         let query = "DELETE FROM downloaded_songs WHERE playlist_url = ?1";
 
         // execute statement
-        let _ = match self.connection.execute(&query, params![playlist_url]) {
+        let _ = match self.connection.execute(query, params![playlist_url]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(
@@ -296,7 +274,7 @@ impl InitializedDatabase {
         let query = "DELETE FROM playlists WHERE playlist_url = ?1";
 
         // execute statement
-        let _ = match self.connection.execute(&query, params![playlist_url]) {
+        let _ = match self.connection.execute(query, params![playlist_url]) {
             Ok(some) => some,
             Err(e) => {
                 return Err(format!(

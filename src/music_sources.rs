@@ -39,7 +39,7 @@ pub fn get_music_source_from_url(url: &str) -> Result<MusicSources, String> {
         }
     };
 
-    let mut regex_match_iter = origin_regex.captures_iter(&url);
+    let mut regex_match_iter = origin_regex.captures_iter(url);
 
     let regex_catpure_group = match regex_match_iter.next() {
         Some(capture) => capture,

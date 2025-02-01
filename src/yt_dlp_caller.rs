@@ -1,8 +1,6 @@
-use std::str;
-use std::{io::Read, process::Command};
+use std::process::Command;
 
 use crate::music_sources::{DownloadedSong, SongInformation};
-use crate::post_processor::init_file_env;
 
 // Calls the yt-dlp cli via os commands
 pub fn download_song(song_information: &SongInformation) -> Result<DownloadedSong, String> {
@@ -17,21 +15,20 @@ pub fn download_song(song_information: &SongInformation) -> Result<DownloadedSon
     };
 
     let command_output = match Command::new("./yt-dlp")
-        .current_dir(working_directory.to_owned())
+        .current_dir(&working_directory)
         .arg("-o")
         .arg("tmp")
         .arg("--audio-format")
         .arg("mp3")
         .arg("-x")
-        .arg(song_information.url.to_owned())
+        .arg(&song_information.url)
         .output()
     {
         Ok(out) => out,
         Err(e) => {
             return Err(format!(
                 "Could not spawn process to download song from url {}: {}",
-                song_information.url,
-                e.to_string()
+                song_information.url, e
             ));
         }
     };

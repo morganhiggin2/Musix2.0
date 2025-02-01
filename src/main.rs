@@ -1,6 +1,5 @@
 use database::Database;
 use environment_extractor::get_environment_variables;
-use music_sources::{soundcloud_service::SoundcloudMusicService, MusicSource};
 
 pub mod audio_tag_appender;
 pub mod command_line_runtime;
@@ -8,7 +7,6 @@ pub mod database;
 pub mod environment_extractor;
 pub mod music_sources;
 pub mod post_processor;
-pub mod s3_service;
 pub mod settings_parser;
 pub mod title_extractor;
 pub mod url_enforcer;

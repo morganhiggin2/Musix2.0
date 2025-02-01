@@ -21,10 +21,7 @@ pub fn post_process_downloaded_song(downloaded_song: DownloadedSong) -> Result<P
         downloaded_song.artist, downloaded_song.title
     ));
 
-    match std::fs::rename(
-        downloaded_song.file_location.to_owned(),
-        renamed_file_path.to_owned(),
-    ) {
+    match std::fs::rename(&downloaded_song.file_location, &renamed_file_path) {
         Ok(_) => (),
         Err(e) => {
             return Err(format!(

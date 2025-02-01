@@ -30,7 +30,7 @@ impl MusicSource for SoundcloudMusicService {
         &self,
         song_information: &SongInformation,
     ) -> Result<super::DownloadedSong, String> {
-        return yt_dlp_caller::download_song(&song_information);
+        return yt_dlp_caller::download_song(song_information);
     }
 
     fn get_playlist_song_information(
@@ -123,22 +123,18 @@ impl MusicSource for SoundcloudMusicService {
             // attempt to get the first match
             let script_url_scrape_matches = client_id_regex.captures(&response_body);
 
-            match script_url_scrape_matches {
-                // if a match
-                Some(capture) => {
-                    // add it to the list of found matches
-                    let (_, [client_id]) = capture.extract();
-                    scripts_found_client_ids.push(client_id.to_owned());
-                }
-                None => (),
+            if let Some(capture) = script_url_scrape_matches {
+                // add it to the list of found matches
+                let (_, [client_id]) = capture.extract();
+                scripts_found_client_ids.push(client_id.to_owned());
             }
         }
 
         // because all the found client ids should be the same, get the first one
-        let client_id = match scripts_found_client_ids.get(0) {
+        let client_id = match scripts_found_client_ids.first() {
             Some(ele) => ele,
             None => {
-                return Err(format!("Could not find client id in any of the cross origin scripts in getting soundcloud playlist tracks"))
+                return Err("Could not find client id in any of the cross origin scripts in getting soundcloud playlist tracks".to_string())
             }
         };
 
@@ -182,7 +178,7 @@ impl MusicSource for SoundcloudMusicService {
 
         // prase json in free manner
         let hydration_json: serde_json::Value =
-            match serde_json::from_str(&window_hydration_contents) {
+            match serde_json::from_str(window_hydration_contents) {
                 Ok(value) => value,
                 Err(e) => {
                     return Err(format!(
@@ -254,7 +250,7 @@ impl MusicSource for SoundcloudMusicService {
                     };
 
                     // if the permalink can be fetched
-                    if let Some(_) = hydration_track.get("permalink_url") {
+                    if hydration_track.get("permalink_url").is_some() {
                         // get rest of the song information
                         let song_information: SongInformation =
                             get_song_information_from_track_information(hydration_track)?;
@@ -340,7 +336,7 @@ fn get_track_information_from_track_id(
         }
     };
 
-    let track_information_track = match track_information_tracks.get(0) {
+    let track_information_track = match track_information_tracks.first() {
         Some(data) => data,
         None => {
             return Err(

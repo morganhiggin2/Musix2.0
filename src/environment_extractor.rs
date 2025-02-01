@@ -1,5 +1,3 @@
-use std::env;
-
 pub struct EnvironmentVariables {
     //database_s3_uri: String,
 }

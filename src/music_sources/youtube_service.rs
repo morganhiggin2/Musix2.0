@@ -29,7 +29,7 @@ impl MusicSource for YoutubeMusicService {
         &self,
         song_information: &SongInformation,
     ) -> Result<super::DownloadedSong, String> {
-        return yt_dlp_caller::download_song(&song_information);
+        return yt_dlp_caller::download_song(song_information);
     }
 
     fn get_playlist_song_information(
@@ -55,7 +55,7 @@ impl MusicSource for YoutubeMusicService {
             Err(err) => {
                 return Err(format!(
                     "Failed to make get playlist information request: {}",
-                    err.to_string()
+                    err
                 ))
             }
         };
@@ -77,35 +77,37 @@ impl MusicSource for YoutubeMusicService {
         let items_array = match page_json.get("items") {
             Some(items) => items.as_array().unwrap(),
             None => {
-                return Err(format!("Could not extract 'items' array from page json"));
+                return Err("Could not extract 'items' array from page json".to_string());
             }
         };
         let item = items_array
-            .get(0)
+            .first()
             .ok_or("Could not get 0th item from items array in page json")?;
 
         let snippet_information = match item.get("snippet") {
             Some(item) => item,
             None => {
-                return Err(format!(
+                return Err(
                     "Could not extract snippet information from item element in page json"
-                ));
+                        .to_string(),
+                );
             }
         };
 
         let localized_information = match snippet_information.get("localized") {
             Some(item) => item,
             None => {
-                return Err(format!(
+                return Err(
                     "Could not extract localized information from snippet information in page json"
-                ));
+                        .to_string(),
+                );
             }
         };
 
         let title_information = match localized_information.get("title") {
             Some(item) => item,
             None => {
-                return Err(format!("Could not extract title information array from localized information in page json"));
+                return Err("Could not extract title information array from localized information in page json".to_string());
             }
         };
 
@@ -125,10 +127,7 @@ impl MusicSource for YoutubeMusicService {
             let response = match ureq::get(&format!("{}{}", base_url, page_token)).call() {
                 Ok(some) => some,
                 Err(e) => {
-                    return Err(format!(
-                        "Could not make request to google api: {}",
-                        e.to_string()
-                    ));
+                    return Err(format!("Could not make request to google api: {}", e));
                 }
             };
 
@@ -146,21 +145,18 @@ impl MusicSource for YoutubeMusicService {
             };
 
             // if error exists
-            match page_json.get("error") {
-                Some(error) => {
-                    return Err(format!(
-                        "Error getting playlist information for playlist {}",
-                        error
-                    ));
-                }
-                None => (),
-            };
+            if let Some(error) = page_json.get("error") {
+                return Err(format!(
+                    "Error getting playlist information for playlist {}",
+                    error
+                ));
+            }
 
             // get playlist video items
             let urls_array = match page_json.get("items") {
                 Some(items) => items.as_array().unwrap(),
                 None => {
-                    return Err(format!("Could not extract 'items' array from page json"));
+                    return Err("Could not extract 'items' array from page json".to_string());
                 }
             };
 
@@ -182,7 +178,7 @@ impl MusicSource for YoutubeMusicService {
                         }
                     }
                     None => {
-                        return Err(format!("Could not get 'description' in video information"));
+                        return Err("Could not get 'description' in video information".to_string());
                     }
                 }
 
@@ -204,6 +200,8 @@ impl MusicSource for YoutubeMusicService {
                         );
                     }
                 };
+
+                let song_url = format!("https://www.youtube.com/watch?v={}", video_id);
 
                 let title = match video_snippet.get("title").as_ref() {
                     Some(title) => title.as_str().unwrap_or(""),
@@ -239,7 +237,7 @@ impl MusicSource for YoutubeMusicService {
 
                 // create Video instance with extracted data
                 let song_information = super::SongInformation {
-                    url: url.to_owned(),
+                    url: song_url.to_owned(),
                     title: title_extractor.name().to_owned(),
                     // genre is the title of the playlist
                     genre: playlist_title.to_owned(),
@@ -254,9 +252,10 @@ impl MusicSource for YoutubeMusicService {
                 Some(next_page_token) => match next_page_token.as_str() {
                     Some(token) => token,
                     None => {
-                        return Err(format!(
+                        return Err(
                             "Could not get next page token from found next page token in json"
-                        ));
+                                .to_string(),
+                        );
                     }
                 },
                 None => {

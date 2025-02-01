@@ -1,17 +1,14 @@
 use clap::{Args, Parser, Subcommand};
 use rand::{self, Rng};
-use std::str::FromStr;
+use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
-use std::{collections::HashSet, path::PathBuf};
 
 use crate::url_enforcer;
 use crate::{
     database::Database,
     environment_extractor::EnvironmentVariables,
-    music_sources::{
-        get_music_source_from_enum, get_music_source_from_url, DownloadedSong, MusicSource,
-    },
+    music_sources::{get_music_source_from_enum, get_music_source_from_url, MusicSource},
     post_processor,
 };
 
@@ -111,7 +108,7 @@ pub fn handle_run(
     let mut downloaded_song_urls = HashSet::<String>::new();
 
     // get already downloaded songs for each playlist
-    for playlist_url in playlists.to_owned() {
+    for playlist_url in playlists.iter() {
         // get downloaded song ids
         let downloaded_playlist_song_urls = database_context
             .get_downloaded_songs_from_playlist(playlist_url, environment_variables)?;
@@ -130,7 +127,7 @@ pub fn handle_run(
 
     // for every playlist, download the songs that are in the playlist
     // but are not downloaded
-    for playlist_url in playlists.to_owned() {
+    for playlist_url in playlists.iter() {
         // get music source type
         // this is unique for each playlist as a playlist can only have one source type
         let music_source_type = get_music_source_from_url(&playlist_url)?;

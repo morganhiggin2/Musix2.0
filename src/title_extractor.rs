@@ -24,10 +24,7 @@ pub struct FinishedTitleExtractor {
 
 impl EmptyTitleExtractor {
     pub fn init(title: String, artist: String) -> InitializedTitleExtractor {
-        return InitializedTitleExtractor {
-            title: title,
-            artist: artist,
-        };
+        return InitializedTitleExtractor { title, artist };
     }
 }
 
@@ -66,7 +63,7 @@ impl InitializedTitleExtractor {
                 let song_name = title
                     .chars()
                     .skip(split_match.end() + 1)
-                    .take(&self.title.len() - split_match.end() - 1)
+                    .take(self.title.len() - split_match.end() - 1)
                     .collect::<String>();
 
                 (song_name, song_artist)
@@ -78,12 +75,10 @@ impl InitializedTitleExtractor {
         let song_name = song_info.0.trim();
         let song_artist = song_info.1.trim();
 
-        let finished_title_extractor = FinishedTitleExtractor {
+        return Ok(FinishedTitleExtractor {
             name: song_name.to_owned(),
             artist: song_artist.to_owned(),
-        };
-
-        return Ok(finished_title_extractor);
+        });
     }
 }
 
