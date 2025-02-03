@@ -6,3 +6,4 @@ src/resources/settings.json
 yt-dlp
 downloaded/*
 archive/*
+tmp/*

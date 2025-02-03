@@ -160,7 +160,8 @@ impl InitializedDatabase {
         playlist_url: &str,
     ) -> Result<Vec<String>, String> {
         //create query
-        let query = "SELECT * FROM downloaded_songs WHERE playlist_url = ?1";
+        // get downloaded songs that did not fail
+        let query = "SELECT * FROM downloaded_songs WHERE playlist_url = ?1 AND failed = False";
 
         //list of youtube song ids
         let mut song_urls: Vec<String> = Vec::new();
@@ -210,12 +211,13 @@ impl InitializedDatabase {
         failed: bool,
     ) -> Result<(), String> {
         //create query
-        let query = "INSERT INTO downloaded_songs VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING";
+        let query =
+            "INSERT INTO downloaded_songs VALUES (?1, ?2, ?3) ON CONFLICT DO UPDATE SET failed = (?4)";
 
         // execute statement
         let statement_result = self
             .connection
-            .execute(query, params![playlist_url, song_url, failed]);
+            .execute(query, params![playlist_url, song_url, failed, failed]);
 
         //execute query, parse result
         match statement_result {

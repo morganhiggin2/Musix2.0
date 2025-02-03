@@ -5,6 +5,7 @@ pub mod audio_tag_appender;
 pub mod command_line_runtime;
 pub mod database;
 pub mod environment_extractor;
+pub mod environment_initializer;
 pub mod music_sources;
 pub mod post_processor;
 pub mod settings_parser;
@@ -21,8 +22,6 @@ fn main() {
 
     //parse command line arguments and execute them
     command_line_runtime::parse_args(&mut database_context, &environment_variables).unwrap();
-
-    //println!("{}", downloaded_song.title);
 }
 
 // TODO have the database file live on s3 for maintainability, as the docker image won't have to reset

@@ -4,13 +4,13 @@ use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
 
-use crate::url_enforcer;
 use crate::{
     database::Database,
     environment_extractor::EnvironmentVariables,
     music_sources::{get_music_source_from_enum, get_music_source_from_url, MusicSource},
     post_processor,
 };
+use crate::{environment_initializer, url_enforcer};
 
 #[derive(Debug, Parser)]
 pub struct App {
@@ -118,12 +118,15 @@ pub fn handle_run(
         });
     }
 
+    // downloaded yt-dlp if it does not exist
+    environment_initializer::init_yt_dlp_executable()?;
+
     // ensure file dir is setup
-    post_processor::init_file_env()?;
+    environment_initializer::init_file_env()?;
 
     // move any current songs in downloaded folder from last possible session into
     // the archive folder
-    post_processor::move_downloaded_songs_to_archive()?;
+    environment_initializer::move_downloaded_songs_to_archive()?;
 
     // for every playlist, download the songs that are in the playlist
     // but are not downloaded

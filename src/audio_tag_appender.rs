@@ -29,10 +29,7 @@ pub fn append_metadata(song_information: &music_sources::DownloadedSong) -> Resu
     current_tags.set_genre(&song_information.genre);
 
     match current_tags.write_to(&mut audio_file) {
-        Ok(_) => {
-            let title = current_tags.title().unwrap();
-            println!("wrote to path with {title}");
-        }
+        Ok(_) => (),
         Err(e) => {
             return Err(format!("Cannot write to audio file: {}", e));
         }
