@@ -16,9 +16,20 @@ pub fn post_process_downloaded_song(downloaded_song: DownloadedSong) -> Result<P
             Err(e) => return Err(format!("Could not create empty path: {}", e)),
         },
     };
+
+    // get file name
+    let mut final_file_name = format!("{} - {}", downloaded_song.artist, downloaded_song.title);
+
+    // replaces characters that are not allowed in file names with spaces, for both windows and linux (as they should be the same on both)
+    const INVALID_WINDOWS_FILENAME_CHARS: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
+    for invalid_char in INVALID_WINDOWS_FILENAME_CHARS {
+        final_file_name = final_file_name.replace(invalid_char, " ");
+    }
+
     let renamed_file_path = renamed_file_path.join(format!(
-        "downloaded/{} - {}.mp3",
-        downloaded_song.artist, downloaded_song.title
+        "downloaded/{}.mp3",
+        final_file_name
     ));
 
     match std::fs::rename(&downloaded_song.file_location, &renamed_file_path) {

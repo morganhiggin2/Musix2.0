@@ -7,3 +7,4 @@ yt-dlp
 downloaded/*
 archive/*
 tmp/*
+resources/api_key.txt
