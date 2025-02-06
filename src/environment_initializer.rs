@@ -1,4 +1,4 @@
-use std::{io::Write, os::unix::fs::PermissionsExt};
+use std::{io::Write};
 
 use ureq;
 
@@ -121,8 +121,25 @@ pub fn init_yt_dlp_executable() -> Result<(), String> {
         buffer.fill(0);
     }
 
-    // set file permissions
-    match file.set_permissions(std::fs::Permissions::from_mode(0o755)) {
+
+    set_file_permissions(&mut file)?;
+
+    return Ok(());
+}
+
+
+#[cfg(target_os = "windows")]
+fn set_file_permissions(file: &mut std::fs::File) -> Result<(), String> {
+    let metadata = match file.metadata() {
+        Ok(metadata) => metadata,
+        Err(e) => return Err(format!("Could not get metadata from executable file: {}", e))
+    };
+    let mut permissions = metadata.permissions();
+
+    // Set the file as read-only (Windows does not support Unix-style permissions)
+    permissions.set_readonly(true);
+
+    match file.set_permissions(permissions) {
         Ok(()) => (),
         Err(e) => {
             return Err(format!(
@@ -131,7 +148,24 @@ pub fn init_yt_dlp_executable() -> Result<(), String> {
             ))
         }
     };
+    
+    return Ok(());
+}
 
+#[cfg(not(target_os = "windows"))]
+fn set_file_permissions(file: &std::fs::File) -> Result<(), String>  {
+    use std::os::unix::fs::PermissionsExt;
+
+    match file.set_permissions(std::os::fs::Permissions::from_mode(0o755)) {
+        Ok(()) => (),
+        Err(e) => {
+            return Err(format!(
+                "Could not set permissions for yt-dlp executable: {}",
+                e
+            ))
+        }
+    };
+    
     return Ok(());
 }
 
@@ -145,7 +179,27 @@ pub fn init_file_env() -> Result<(), String> {
         }
     };
 
-    // check if the archive directory exists, create it if it doesn't
+    // check if the downloaded directory exists, create it if it doesn't
+    let data_directory = working_directory.join("data");
+
+    // ensure that the downloaded directory exists
+    if !data_directory.exists() {
+        if let Err(e) = std::fs::create_dir(&data_directory) {
+            return Err(format!("Could not create data directory: {}", e));
+        }
+    }
+    
+    // check if the downloaded directory exists, create it if it doesn't
+    let database_directory = data_directory.join("database");
+
+    // ensure that the downloaded directory exists
+    if !database_directory.exists() {
+        if let Err(e) = std::fs::create_dir(&database_directory) {
+            return Err(format!("Could not create database directory: {}", e));
+        }
+    }
+
+    // check if the downloaded directory exists, create it if it doesn't
     let downloaded_directory = working_directory.join("downloaded");
 
     // ensure that the downloaded directory exists

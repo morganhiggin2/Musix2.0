@@ -17,6 +17,9 @@ fn main() {
     // Get environment variables
     let environment_variables = get_environment_variables().unwrap();
 
+    // initialize the file environment
+    environment_initializer::init_file_env().unwrap();
+
     // create contexts
     let mut database_context = Database::default();
 

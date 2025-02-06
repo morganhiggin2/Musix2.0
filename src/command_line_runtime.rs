@@ -121,9 +121,6 @@ pub fn handle_run(
     // downloaded yt-dlp if it does not exist
     environment_initializer::init_yt_dlp_executable()?;
 
-    // ensure file dir is setup
-    environment_initializer::init_file_env()?;
-
     // move any current songs in downloaded folder from last possible session into
     // the archive folder
     environment_initializer::move_downloaded_songs_to_archive()?;

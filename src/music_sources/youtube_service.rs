@@ -6,7 +6,7 @@ use crate::title_extractor::{
 };
 use crate::yt_dlp_caller;
 
-const GOOGLE_API_KEY: &str = include_str!("../resources/api_key.txt");
+const GOOGLE_API_KEY: &str = include_str!("../../resources/api_key.txt");
 
 pub struct YoutubeMusicService {}
 
