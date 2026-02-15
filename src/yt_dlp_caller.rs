@@ -16,6 +16,8 @@ pub fn download_song(song_information: &SongInformation) -> Result<DownloadedSon
 
     let command_output = match Command::new("./yt-dlp")
         .current_dir(&working_directory)
+        .arg("--js-runtimes")
+        .arg("deno")
         .arg("-o")
         .arg("tmp")
         .arg("--audio-format")

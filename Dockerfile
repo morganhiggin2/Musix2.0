@@ -9,7 +9,11 @@ RUN apt-get update && apt-get install -y \
 // Create directory for yt-dlp and download the executable and give it permissions
 RUN mkdir -p ~/.local/bin && \
     curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ~/.local/bin/yt-dlp && \
-    chown a+rwx ~/.local/bin/yt-dlp
+    chmod a+rwx ~/.local/bin/yt-dlp
+
+# Install Deno, which is required by yt-dlp for some extractions
+RUN curl -fsSL https://deno.land/x/install/install.sh | sh
+ENV PATH="/root/.deno/bin:${PATH}"
 
 // Copy the .aws/config and the settings.json
 

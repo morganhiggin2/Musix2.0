@@ -212,10 +212,13 @@ impl MusicSource for YoutubeMusicService {
                     }
                 };
 
-                let channel_title = match video_snippet.get("videoOwnerChannelTitle") {
+                let channel_title = match video_snippet.get("channelTitle") {
                     Some(channel_title) => channel_title.as_str().unwrap_or(""),
                     None => {
-                        return Err("Could not get 'videoOwnerChannelTitle' from 'snippet' in video information".to_string());
+                        return Err(
+                            "Could not get \'channelTitle\' from \'snippet\' in video information"
+                                .to_string(),
+                        );
                     }
                 };
 

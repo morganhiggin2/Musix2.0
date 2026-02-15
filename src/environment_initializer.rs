@@ -148,7 +148,7 @@ fn set_file_permissions(file: &mut std::fs::File) -> Result<(), String> {
             ))
         }
     };
-    
+
     return Ok(());
 }
 
@@ -156,7 +156,7 @@ fn set_file_permissions(file: &mut std::fs::File) -> Result<(), String> {
 fn set_file_permissions(file: &std::fs::File) -> Result<(), String>  {
     use std::os::unix::fs::PermissionsExt;
 
-    match file.set_permissions(std::os::fs::Permissions::from_mode(0o755)) {
+    match file.set_permissions(std::fs::Permissions::from_mode(0o755)) {
         Ok(()) => (),
         Err(e) => {
             return Err(format!(
@@ -165,7 +165,7 @@ fn set_file_permissions(file: &std::fs::File) -> Result<(), String>  {
             ))
         }
     };
-    
+
     return Ok(());
 }
 
@@ -188,7 +188,7 @@ pub fn init_file_env() -> Result<(), String> {
             return Err(format!("Could not create data directory: {}", e));
         }
     }
-    
+
     // check if the downloaded directory exists, create it if it doesn't
     let database_directory = data_directory.join("database");
 
