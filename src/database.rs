@@ -109,6 +109,55 @@ impl Database {
 
         return initialzied_database.get_all_playlists();
     }
+
+    pub fn put_apple_youtube_playlist_map(
+        &mut self,
+        apple_playlist_path: String,
+        youtube_playlist_url: String,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<(), String> {
+        let initialzied_database = self.get_initialized_state_always(environment_variables)?;
+        return initialzied_database
+            .put_apple_youtube_playlist_map(apple_playlist_path, youtube_playlist_url);
+    }
+
+    pub fn get_youtube_playlist_url_for_apple_playlist(
+        &mut self,
+        apple_playlist_path: &str,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<Option<String>, String> {
+        let initialzied_database = self.get_initialized_state_always(environment_variables)?;
+        return initialzied_database
+            .get_youtube_playlist_url_for_apple_playlist(apple_playlist_path);
+    }
+
+    pub fn get_all_apple_playlists(
+        &mut self,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<Vec<String>, String> {
+        let initialzied_database = self.get_initialized_state_always(environment_variables)?;
+        return initialzied_database.get_all_apple_playlists();
+    }
+
+    pub fn put_youtube_playlist_song_content(
+        &mut self,
+        youtube_playlist_url: String,
+        song_youtube_url: String,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<(), String> {
+        let initialzied_database = self.get_initialized_state_always(environment_variables)?;
+        return initialzied_database
+            .put_youtube_playlist_song_content(youtube_playlist_url, song_youtube_url);
+    }
+
+    pub fn get_youtube_playlist_songs_content(
+        &mut self,
+        youtube_playlist_url: &str,
+        environment_variables: &EnvironmentVariables,
+    ) -> Result<Vec<String>, String> {
+        let initialzied_database = self.get_initialized_state_always(environment_variables)?;
+        return initialzied_database.get_youtube_playlist_songs_content(youtube_playlist_url);
+    }
 }
 
 impl InitializedDatabase {
@@ -132,8 +181,12 @@ impl InitializedDatabase {
         let create_table_queries = [
             "CREATE TABLE IF NOT EXISTS playlists (playlist_url VARCHAR(11))",
             "CREATE TABLE IF NOT EXISTS downloaded_songs (song_url VARCHAR(11), playlist_url VARCHAR(11), failed BOOLEAN)",
+            "CREATE TABLE IF NOT EXISTS apple_youtube_playlist_map (apple_playlist_path TEXT UNIQUE, youtube_playlist_url TEXT)",
             "CREATE UNIQUE INDEX IF NOT EXISTS playlists_playlists_id_index ON playlists (playlist_url)",
-            "CREATE UNIQUE INDEX IF NOT EXISTS downloaded_songs_song_url ON downloaded_songs (song_url, playlist_url)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS downloaded_songs_song_url ON downloaded_songs (song_url, playlist_url)",
+            "CREATE TABLE IF NOT EXISTS youtube_playlist_content (youtube_playlist_url TEXT, song_youtube_url TEXT)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS apple_youtube_playlist_map_path_index ON apple_youtube_playlist_map (apple_playlist_path)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS youtube_playlist_content_pk ON youtube_playlist_content (youtube_playlist_url, song_youtube_url)"
         ];
 
         //for each create table query
@@ -290,9 +343,119 @@ impl InitializedDatabase {
     }
 
     // Returns a list of tuples containing (playlist id, genre) for each playlist
+    /// Put Apple playlist to YouTube playlist mapping into database
+    ///   If already exists, will silently ignore
+    pub fn put_apple_youtube_playlist_map(
+        &self,
+        apple_playlist_path: String,
+        youtube_playlist_url: String,
+    ) -> Result<(), String> {
+        let query =
+            "INSERT OR REPLACE INTO apple_youtube_playlist_map (apple_playlist_path, youtube_playlist_url) VALUES (?1, ?2)";
+
+        let statement_result = self
+            .connection
+            .execute(query, params![apple_playlist_path, youtube_playlist_url]);
+
+        match statement_result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!(
+                "Could not execute put apple youtube playlist map query: {}: {}",
+                query, e
+            )),
+        }
+    }
+
+    pub fn get_youtube_playlist_url_for_apple_playlist(
+        &self,
+        apple_playlist_path: &str,
+    ) -> Result<Option<String>, String> {
+        let query =
+            "SELECT youtube_playlist_url FROM apple_youtube_playlist_map WHERE apple_playlist_path = ?1";
+
+        let mut statement = match self.connection.prepare(query) {
+            Ok(some) => some,
+            Err(e) => {
+                return Err(format!(
+                    "Could not create prepared statement in get_youtube_playlist_url_for_apple_playlist: {}: {}",
+                    query, e
+                ));
+            }
+        };
+
+        let mut rows = match statement.query(params![apple_playlist_path]) {
+            Ok(rows) => rows,
+            Err(e) => {
+                return Err(format!(
+                    "Could not execute query in get_youtube_playlist_url_for_apple_playlist: {}: {}",
+                    query, e
+                ));
+            }
+        };
+
+        match rows.next() {
+            Ok(Some(row)) => {
+                let youtube_playlist_url: String = match row.get(0) {
+                    Ok(url) => url,
+                    Err(e) => {
+                        return Err(format!(
+                            "Could not get youtube_playlist_url from row: {}",
+                            e
+                        ));
+                    }
+                };
+                Ok(Some(youtube_playlist_url))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(format!(
+                "Error fetching row in get_youtube_playlist_url_for_apple_playlist: {}",
+                e
+            )),
+        }
+    }
+
+    pub fn get_all_apple_playlists(&self) -> Result<Vec<String>, String> {
+        let query = "SELECT apple_playlist_path FROM apple_youtube_playlist_map";
+
+        let mut apple_playlists: Vec<String> = Vec::new();
+
+        let mut statement = match self.connection.prepare(query) {
+            Ok(some) => some,
+            Err(e) => {
+                return Err(format!(
+                    "Could not create prepared statement in get_all_apple_playlists: {}: {}",
+                    query, e
+                ));
+            }
+        };
+
+        let playlists_results = match statement.query_map([], |row| {
+            let apple_playlist_path: String = row.get(0)?;
+            Ok(apple_playlist_path)
+        }) {
+            Ok(some) => some,
+            Err(e) => {
+                return Err(format!("Could not execute prepared statement and collect row information in get_all_apple_playlists: {}: {}", query, e));
+            }
+        };
+
+        for playlist_result in playlists_results {
+            let playlist = match playlist_result {
+                Ok(some) => some,
+                Err(e) => {
+                    return Err(format!("Error fetching a row for prepared statement {} in get_all_apple_playlists: {}", query, e));
+                }
+            };
+
+            apple_playlists.push(playlist);
+        }
+
+        return Ok(apple_playlists);
+    }
+
     pub fn get_all_playlists(&self) -> Result<Vec<String>, String> {
         //create query
-        let query = "SELECT * FROM playlists";
+        let query = "SELECT * FROM playlists ";
 
         //list of playlist ids
         let mut playlists: Vec<String> = Vec::new();
@@ -324,7 +487,10 @@ impl InitializedDatabase {
             let playlist = match playlist_result {
                 Ok(some) => some,
                 Err(e) => {
-                    return Err(format!("Error fetching a row for prepared statement {} in get downloaded songs: {}", query, e));
+                    return Err(format!(
+                        "Error fetching a row for prepared statement {} in get all playlists: {}",
+                        query, e
+                    ));
                 }
             };
 
@@ -332,5 +498,75 @@ impl InitializedDatabase {
         }
 
         return Ok(playlists);
+    }
+
+    pub fn put_youtube_playlist_song_content(
+        &self,
+        youtube_playlist_url: String,
+        song_youtube_url: String,
+    ) -> Result<(), String> {
+        let query =
+            "INSERT OR REPLACE INTO youtube_playlist_content (youtube_playlist_url, song_youtube_url) VALUES (?1, ?2)";
+
+        let statement_result = self
+            .connection
+            .execute(query, params![youtube_playlist_url, song_youtube_url]);
+
+        match statement_result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!(
+                "Could not execute put youtube playlist song content query: {}: {}",
+                query, e
+            )),
+        }
+    }
+
+    pub fn get_youtube_playlist_songs_content(
+        &self,
+        youtube_playlist_url: &str,
+    ) -> Result<Vec<String>, String> {
+        let query =
+            "SELECT song_youtube_url FROM youtube_playlist_content WHERE youtube_playlist_url = ?1";
+
+        let mut song_youtube_urls: Vec<String> = Vec::new();
+
+        let mut statement = match self.connection.prepare(query) {
+            Ok(some) => some,
+            Err(e) => {
+                return Err(format!(
+                    "Could not create prepared statement in get_youtube_playlist_songs_content: {}: {}",
+                    query, e
+                ));
+            }
+        };
+
+        let songs_results = match statement.query_map(params![youtube_playlist_url], |row| {
+            let song_youtube_url: String = row.get(0)?;
+            Ok(song_youtube_url)
+        }) {
+            Ok(some) => some,
+            Err(e) => {
+                return Err(format!(
+                    "Could not execute prepared statement and collect row information in get_youtube_playlist_songs_content: {}: {}",
+                    query, e
+                ));
+            }
+        };
+
+        for song_result in songs_results {
+            let song = match song_result {
+                Ok(some) => some,
+                Err(e) => {
+                    return Err(format!(
+                        "Error fetching a row for prepared statement {} in get_youtube_playlist_songs_content: {}",
+                        query, e
+                    ));
+                }
+            };
+
+            song_youtube_urls.push(song);
+        }
+
+        return Ok(song_youtube_urls);
     }
 }

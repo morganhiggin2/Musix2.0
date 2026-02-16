@@ -1,3 +1,4 @@
+use serde_json;
 use ureq;
 
 use super::{MusicSource, SongInformation};
@@ -21,6 +22,159 @@ pub struct Video {
 impl YoutubeMusicService {
     pub fn new() -> Self {
         return YoutubeMusicService {};
+    }
+
+    /// Creates a new public YouTube playlist with the given title.
+    /// Returns the URL of the newly created playlist.
+    pub fn create_youtube_playlist(&self, playlist_title: &str) -> Result<String, String> {
+        let url = format!(
+            "https://www.googleapis.com/youtube/v3/playlists?part=snippet,status&key={}",
+            GOOGLE_API_KEY
+        );
+
+        let request_body = serde_json::json!({
+            "snippet": {
+                "title": playlist_title,
+                "description": "Playlist created by Musix2.0",
+            },
+            "status": {
+                "privacyStatus": "public"
+            }
+        });
+
+        let request_body_json_string = request_body.to_string();
+
+        let response = match ureq::post(&url).send_string(&request_body_json_string) {
+            Ok(response) => response,
+            Err(err) => {
+                return Err(format!("Failed to create YouTube playlist: {}", err));
+            }
+        };
+
+        let response_text = match response.into_string() {
+            Ok(text) => text,
+            Err(e) => {
+                return Err(format!(
+                    "Failed to get response text after creating playlist: {}",
+                    e
+                ))
+            }
+        };
+
+        let page_json: serde_json::Value = match serde_json::from_str(&response_text) {
+            Ok(value) => value,
+            Err(e) => {
+                return Err(format!(
+                    "Failed to parse JSON response after creating playlist: {}",
+                    e
+                ));
+            }
+        };
+
+        if let Some(error) = page_json.get("error") {
+            return Err(format!("Error creating YouTube playlist: {}", error));
+        }
+
+        let playlist_id = match page_json.get("id").and_then(|id| id.as_str()) {
+            Some(id) => id,
+            None => return Err("Could not extract playlist ID from response".to_string()),
+        };
+
+        Ok(format!(
+            "https://www.youtube.com/playlist?list={}",
+            playlist_id
+        ))
+    }
+
+    /// Adds a song to an existing YouTube playlist.
+    pub fn add_song_to_youtube_playlist(
+        &self,
+        playlist_url: &str,
+        song_url: &str,
+    ) -> Result<(), String> {
+        // Extract playlist ID from playlist_url
+        let playlist_id_regex =
+            match regex::Regex::new(r"https://www\\.youtube\\.com/playlist\\?list=([A-z0-9_-]+)") {
+                Ok(regex) => regex,
+                Err(err) => return Err(format!("Failed to create regex for playlist ID: {}", err)),
+            };
+        let playlist_id = playlist_id_regex
+            .captures(playlist_url)
+            .and_then(|caps| caps.get(1))
+            .ok_or(format!(
+                "Could not extract playlist ID from URL: {}",
+                playlist_url
+            ))?
+            .as_str();
+
+        // Extract video ID from song_url
+        let video_id_regex = match regex::Regex::new(
+            r"(?:https?://)?(?:www\\.)?(?:youtube\\.com|youtu\\.be)/(?:watch\\?v=|embed/|v/|)([^\\&\\?]{11})",
+        ) {
+            Ok(regex) => regex,
+            Err(err) => return Err(format!("Failed to create regex for video ID: {}", err)),
+        };
+        let video_id = video_id_regex
+            .captures(song_url)
+            .and_then(|caps| caps.get(1))
+            .ok_or(format!("Could not extract video ID from URL: {}", song_url))?
+            .as_str();
+
+        let url = format!(
+            "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&key={}",
+            GOOGLE_API_KEY
+        );
+
+        let request_body = serde_json::json!({
+            "snippet": {
+                "playlistId": playlist_id,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": video_id
+                }
+            }
+        });
+
+        let request_body_json_string = request_body.to_string();
+
+        let response = match ureq::post(&url).send_string(&request_body_json_string) {
+            Ok(response) => response,
+            Err(err) => {
+                return Err(format!(
+                    "Failed to add song {} to playlist {}: {}",
+                    song_url, playlist_id, err
+                ));
+            }
+        };
+
+        let response_text = match response.into_string() {
+            Ok(text) => text,
+            Err(e) => {
+                return Err(format!(
+                    "Failed to get response text after adding song: {}",
+                    e
+                ))
+            }
+        };
+
+        let page_json: serde_json::Value = match serde_json::from_str(&response_text) {
+            Ok(value) => value,
+            Err(e) => {
+                return Err(format!(
+                    "Failed to parse JSON response after adding song: {}",
+                    e
+                ));
+            }
+        };
+
+        if let Some(error) = page_json.get("error") {
+            return Err(format!(
+                "Error adding song {} to playlist {}: {}",
+                song_url, playlist_id, error
+            ));
+        }
+
+        Ok(())
     }
 }
 
