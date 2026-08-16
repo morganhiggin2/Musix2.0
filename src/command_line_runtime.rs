@@ -2,7 +2,7 @@ use clap::{Args, Parser, Subcommand};
 use rand::{self, Rng};
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader};
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
