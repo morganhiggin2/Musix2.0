@@ -15,21 +15,21 @@
 ## Technical Specifications
 
 - **Language/Runtime**: Rust 2021 edition.
-- **Core dependencies**: `clap` (CLI), `rusqlite` (SQLite), `ureq` (HTTP), `serde_json` (JSON), `regex` (URL/title parsing), `audiotags` (ID3 tags), `getset` (getters), `rand` (sleep jitter), `aws-sdk-s3`/`aws-config` (planned S3 database), `rustube` (reserved for YouTube extraction).
+- **Core dependencies**: `clap` (CLI), `rusqlite` (SQLite), `ureq` (HTTP), `serde_json` (JSON), `regex` (URL/title parsing), `id3` (ID3 tags), `getset` (getters), `rand` (sleep jitter), `aws-sdk-s3`/`aws-config` (planned S3 database), `rustube` (reserved for YouTube extraction).
 - **SQLite schema** (at `data/database/sqlite.db`):
   - `playlists (playlist_url)`: registered playlist identifiers, unique. Values are either remote URLs or `/`-prefixed local playlist ids.
   - `downloaded_songs (song_url, playlist_url, failed)`: per-playlist song download state, unique on the pair, `failed` updated on conflict.
   - `apple_youtube_playlist_map (apple_playlist_path, youtube_playlist_url)` / `youtube_playlist_content (youtube_playlist_url, song_youtube_url)`: legacy tables from the removed Apple playlist bridging feature; no longer written.
 - **CLI commands**: `CreatePlaylist`, `DeletePlaylist`, `ListPlaylists`, `Run` (optional `--playlist <id-or-url>` to target a single playlist), `RefreshLocalPlaylists`.
 - **External integrations**:
-  - `yt-dlp`: invoked as a subprocess (`./yt-dlp`, `--audio-format mp3`, `-x`, output `tmp`); the executable is auto-downloaded per OS (Windows/macOS/Linux) with `chmod 755` on Unix. Must be kept current — YouTube now 403s stale versions (SABR/PO-token enforcement).
+  - `yt-dlp`: invoked as a subprocess (`./yt-dlp`, `--audio-format mp3`, `-x`, `--no-playlist`, output `tmp`); the executable is auto-downloaded per OS (Windows/macOS/Linux) with `chmod 755` on Unix. Must be kept current — YouTube now 403s stale versions (SABR/PO-token enforcement). A leftover `tmp.mp3` from a failed previous run is deleted before each invocation: yt-dlp silently skips the download (exit 0) when its final post-processed output file already exists, which otherwise re-tags the previous song's audio under the new song's name. `--no-playlist` prevents `watch?v=...&list=...` URLs (e.g. radio mixes) from downloading the entire attached playlist into the shared `tmp` output.
   - `bgutil-ytdlp-pot-provider` (PO token provider): plugin bundled at `yt-dlp-plugins/` (portable plugin dir next to the binary) with the provider at `~/bgutil-ytdlp-pot-provider/server`. Supplies GVS PO tokens to the default YouTube client so media downloads do not 403. The plugin exposes three provider variants — `bgutil:http` (always-on HTTP server, port 4416), `bgutil:script-node`, and `bgutil:script-deno` (auto-spawned generation script). When both methods are available (provider repo present + `node`/`deno` on PATH) the HTTP variant is **prioritized**, so downloads 403 unless the server is actually running (see "PO-token provider — download & launch").
   - YouTube Data API v3: playlist metadata, paginated `playlistItems`, playlist creation, and playlist item insertion, keyed by `resources/api_key.txt`.
   - SoundCloud: page scraping of the `window.__sc_hydration` JSON plus cross-origin script scraping for the `client_id`, with an API-v2 track lookup fallback when `permalink_url` is missing.
 - **Playlist URL format**: only canonical `https://www.youtube.com/playlist?list=...` URLs parse in `get_playlist_song_information`; watch-form URLs (`watch?v=...&list=...`) fail the parser. A playlist id beginning with `/` instead denotes a local playlist file (see High Level Design); local playlist file lines must have at least 4 comma-separated columns (`url,artist,title,genre`), where fields containing commas must be wrapped in double quotes (`"Steve Aoki, Chris Lake"`) and literal quotes are escaped by doubling (`""`). Any extra columns are folded back into the title to tolerate unquoted commas in titles.
 - **Genre**: per-song genre is set to the YouTube playlist title fetched from the Data API for YouTube playlists; for local playlists the genre comes from each file line. There is no CLI override for a custom genre.
 - **File environment**: `data/` (database; `apple_playlists/` is legacy/unused), `downloaded/` (fresh downloads), `archive/` (previously downloaded songs moved before each run), `local_playlists/` (local playlist `.txt` files), `yt-dlp-plugins/` (PO-token provider plugin). Files are moved `downloaded/ -> archive/` at startup.
-- **Post-processing**: ID3 metadata (title, artist, genre) is appended, then the file is renamed to `{artist} - {title}.mp3` with Windows-invalid filename characters (`< > : " / \ | ? *`) replaced by spaces.
+- **Post-processing**: ID3 metadata (title, artist, genre) is appended via the `id3` crate's `Tag::read_from_path` + `write_to_path` (Id3v24), then the file is renamed to `{artist} - {title}.mp3` with Windows-invalid filename characters (`< > : " / \ | ? *`) replaced by spaces. Tagging must go through `write_to_path`: writing the tag through an open file handle (as the previously used `audiotags` wrapper did) overwrites the start of the first audio frame when the new tag is longer than the old one, stripping the Xing duration header and making players report wrong durations.
 - **Settings**: `settings.json` (SoundCloud credentials) exists but is currently unused.
 
 ## Running the Program
@@ -82,9 +82,9 @@
 - **`yt_dlp_caller.rs`**: thin wrapper that spawns the `yt-dlp` CLI for a given `SongInformation` and returns a `DownloadedSong`.
 - **`database.rs`**: SQLite wrapper modeled as a state machine (`UninitializedDatabase -> InitializedDatabase`) with lazy initialization; all public methods delegate to the initialized state.
 - **`environment_extractor.rs`**: environment variable extraction; the S3 database URI field is currently commented out (planned).
-- **`environment_initializer.rs`**: ensures `data/`, `database/`, `downloaded/`, `archive/`, `local_playlists/` exist, downloads the `yt-dlp` executable if absent, and moves leftover downloads to the archive.
+- **`environment_initializer.rs`**: ensures `data/`, `database/`, `downloaded/`, `archive/`, `local_playlists/` exist, downloads the `yt-dlp` executable if absent, and moves leftover downloads to the archive, skipping entries that are not regular files (e.g. iCloud Drive's `.tmp.driveupload` placeholder directories, which otherwise crash the move with a panic).
 - **`post_processor.rs`**: orchestration of tag appending and file rename, returning the new file path.
-- **`audio_tag_appender.rs`**: writes title/artist/genre ID3 tags to the downloaded file.
+- **`audio_tag_appender.rs`**: writes title/artist/genre ID3 tags to the downloaded file via the `id3` crate (`write_to_path` only — see Post-processing constraint). Unit test asserts the Xing duration header survives tagging.
 - **`title_extractor.rs`**: parses artist and track name out of YouTube video titles using regex separators; falls back to the channel name as artist.
 - **`url_enforcer.rs`**: validates that a URL has `https` plus sub-origin/origin/root-origin structure.
 - **`settings_parser.rs`**: reads and parses `settings.json` (unused by the current pipeline).

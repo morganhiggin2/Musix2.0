@@ -14,10 +14,22 @@ pub fn download_song(song_information: &SongInformation) -> Result<DownloadedSon
         }
     };
 
+    // remove a leftover tmp.mp3 from a previous failed run, otherwise yt-dlp sees
+    // the final output file already exists and skips the download entirely
+    let leftover_tmp = working_directory.join("tmp.mp3");
+    match std::fs::remove_file(&leftover_tmp) {
+        Ok(_) => (),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+        Err(e) => {
+            return Err(format!("Could not remove leftover tmp.mp3 file: {}", e));
+        }
+    };
+
     let command_output = match Command::new("./yt-dlp")
         .current_dir(&working_directory)
         .arg("--js-runtimes")
         .arg("deno")
+        .arg("--no-playlist")
         .arg("-o")
         .arg("tmp")
         .arg("--audio-format")
