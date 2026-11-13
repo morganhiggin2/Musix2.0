@@ -219,6 +219,16 @@ pub fn init_file_env() -> Result<(), String> {
         }
     }
 
+    // check if the local playlists directory exists, create it if it doesn't
+    let local_playlists_directory = working_directory.join("local_playlists");
+
+    // ensure that the local playlists directory exists
+    if !local_playlists_directory.exists() {
+        if let Err(e) = std::fs::create_dir(&local_playlists_directory) {
+            return Err(format!("Could not create local playlists directory: {}", e));
+        }
+    }
+
     move_downloaded_songs_to_archive()?;
 
     return Ok(());
@@ -255,6 +265,24 @@ pub fn move_downloaded_songs_to_archive() -> Result<(), String> {
                 ))
             }
         };
+
+        // get the file metadata so non regular files can be skipped
+        let file_metadata = match std::fs::metadata(file.path()) {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                return Err(format!(
+                    "Could not get metadata for file {} when moving downloaded songs to archive: {}",
+                    file.file_name().to_string_lossy(),
+                    e
+                ))
+            }
+        };
+
+        // skip directories and placeholders such as the icloud drive .tmp.driveupload marker,
+        // which are not regular files and cannot be copied
+        if !file_metadata.is_file() {
+            continue;
+        }
 
         // move file into archive directory
         let from_path = file.path();

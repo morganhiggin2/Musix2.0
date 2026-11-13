@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+pub mod local_playlist_service;
 pub mod soundcloud_service;
 pub mod youtube_service;
 
@@ -85,4 +86,18 @@ pub fn get_music_source_from_enum(music_source: MusicSources) -> Box<dyn MusicSo
     } else {
         return Box::new(youtube_service::YoutubeMusicService::new());
     }
+}
+
+pub fn get_music_source_from_playlist_identifier(
+    playlist_identifier: &str,
+) -> Result<Box<dyn MusicSource>, String> {
+    // local playlists are identified by a leading forward slash
+    if playlist_identifier.starts_with('/') {
+        return Ok(Box::new(local_playlist_service::LocalPlaylistService::new()));
+    }
+
+    // remote playlists are identified by their url origin
+    let music_source_type = get_music_source_from_url(playlist_identifier)?;
+
+    return Ok(get_music_source_from_enum(music_source_type));
 }
